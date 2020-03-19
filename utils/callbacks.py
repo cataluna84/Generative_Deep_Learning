@@ -38,3 +38,12 @@ def step_decay_schedule(initial_lr, decay_factor=0.5, step_size=1):
         return new_lr
 
     return LearningRateScheduler(schedule)
+
+def inception_block():
+    '''
+    Inception block from the paper Network in Network: https://arxiv.org/abs/1312.4400
+
+    :return:
+    '''
+    #Firdt layer defining
+    #input = Conv2D(filters)

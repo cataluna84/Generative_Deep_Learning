@@ -64,6 +64,7 @@ output_layer = Activation('softmax')(x)
 model = Model(input_layer, output_layer)
 
 print(model.summary())
+print(model.layers[4].get_weights())
 
 opt = Adam(learning_rate=0.0005)
 model.compile(loss='categorical_crossentropy', optimizer=opt, metrics=['accuracy'])

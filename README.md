@@ -8,7 +8,7 @@ https://www.amazon.com/Generative-Deep-Learning-Teaching-Machines/dp/1492041947/
 
 ## Tensorflow
 
-This branch uses standalone Keras with a Tensorflow 2.0 version of the codebase.
+This branch uses standalone Keras with a Tensorflow 2.1 version of the codebase.
 
 ## Structure
 

@@ -1,6 +1,8 @@
 # Generative Deep Learning
 
-Inspired by the official code repository for examples in the O'Reilly book 'Generative Deep Learning'
+Inspired by the official code repository, for examples in the O'Reilly book 'Generative Deep Learning'
+
+++ Research in progres
 
 https://learning.oreilly.com/library/view/generative-deep-learning/9781492041931/
 

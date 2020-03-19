@@ -1,6 +1,6 @@
 # Generative Deep Learning
 
-The official code repository for examples in the O'Reilly book 'Generative Deep Learning'
+Inspired by the official code repository for examples in the O'Reilly book 'Generative Deep Learning'
 
 https://learning.oreilly.com/library/view/generative-deep-learning/9781492041931/
 

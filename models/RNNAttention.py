@@ -7,33 +7,34 @@ from music21 import corpus, converter
 from keras.layers import LSTM, Input, Dropout, Dense, Activation, Embedding, Concatenate, Reshape
 from keras.layers import Flatten, RepeatVector, Permute, TimeDistributed
 from keras.layers import Multiply, Lambda, Softmax
-import keras.backend as K 
+import keras.backend as K
 from keras.models import Model
 from keras.optimizers import RMSprop
 
 from keras.utils import np_utils
 
+
 def get_music_list(data_folder):
-    
     if data_folder == 'chorales':
         file_list = ['bwv' + str(x['bwv']) for x in corpus.chorales.ChoraleList().byBWV.values()]
         parser = corpus
     else:
         file_list = glob.glob(os.path.join(data_folder, "*.mid"))
         parser = converter
-    
+
     return file_list, parser
 
-def create_network(n_notes, n_durations, embed_size = 100, rnn_units = 256, use_attention = False):
+
+def create_network(n_notes, n_durations, embed_size=100, rnn_units=256, use_attention=False):
     """ create the structure of the neural network """
 
-    notes_in = Input(shape = (None,))
-    durations_in = Input(shape = (None,))
+    notes_in = Input(shape=(None,))
+    durations_in = Input(shape=(None,))
 
     x1 = Embedding(n_notes, embed_size)(notes_in)
-    x2 = Embedding(n_durations, embed_size)(durations_in) 
+    x2 = Embedding(n_durations, embed_size)(durations_in)
 
-    x = Concatenate()([x1,x2])
+    x = Concatenate()([x1, x2])
 
     x = LSTM(rnn_units, return_sequences=True)(x)
     # x = Dropout(0.2)(x)
@@ -51,24 +52,22 @@ def create_network(n_notes, n_durations, embed_size = 100, rnn_units = 256, use_
 
         c = Multiply()([x, alpha_repeated])
         c = Lambda(lambda xin: K.sum(xin, axis=1), output_shape=(rnn_units,))(c)
-    
+
     else:
         c = LSTM(rnn_units)(x)
         # c = Dropout(0.2)(c)
-                                    
-    notes_out = Dense(n_notes, activation = 'softmax', name = 'pitch')(c)
-    durations_out = Dense(n_durations, activation = 'softmax', name = 'duration')(c)
-   
+
+    notes_out = Dense(n_notes, activation='softmax', name='pitch')(c)
+    durations_out = Dense(n_durations, activation='softmax', name='duration')(c)
+
     model = Model([notes_in, durations_in], [notes_out, durations_out])
-    
 
     if use_attention:
         att_model = Model([notes_in, durations_in], alpha)
     else:
         att_model = None
 
-
-    opti = RMSprop(lr = 0.001)
+    opti = RMSprop(lr=0.001)
     model.compile(loss=['categorical_crossentropy', 'categorical_crossentropy'], optimizer=opti)
 
     return model, att_model
@@ -80,15 +79,16 @@ def get_distinct(elements):
     n_elements = len(element_names)
     return (element_names, n_elements)
 
+
 def create_lookups(element_names):
     # create dictionary to map notes and durations to integers
     element_to_int = dict((element, number) for number, element in enumerate(element_names))
     int_to_element = dict((number, element) for number, element in enumerate(element_names))
 
     return (element_to_int, int_to_element)
-    
 
-def prepare_sequences(notes, durations, lookups, distincts, seq_len =32):
+
+def prepare_sequences(notes, durations, lookups, distincts, seq_len=32):
     """ Prepare the sequences used to train the Neural Network """
 
     note_to_int, int_to_note, duration_to_int, int_to_duration = lookups
@@ -126,7 +126,6 @@ def prepare_sequences(notes, durations, lookups, distincts, seq_len =32):
 
 
 def sample_with_temp(preds, temperature):
-
     if temperature == 0:
         return np.argmax(preds)
     else:

@@ -26,8 +26,6 @@ The `utils` folder stores useful functions that are sourced by the main notebook
 
 To get started, first install the required libraries inside a virtual environment:
 
-`pip install -r requirements.txt`
- 
+`conda create --name \<env> --file requirements.txt` 
 
-
-
+Activate the environment and start the jupyter notebook for traversing the 'ipynb' files

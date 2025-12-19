@@ -1,13 +1,12 @@
+import tensorflow as tf
+from tensorflow.keras.layers import Input, Conv2D, Flatten, Dense, Conv2DTranspose, Reshape, Lambda, Activation, BatchNormalization, LeakyReLU, Dropout, ZeroPadding2D, UpSampling2D, Layer
 
-from keras.layers import Input, Conv2D, Flatten, Dense, Conv2DTranspose, Reshape, Lambda, Activation, BatchNormalization, LeakyReLU, Dropout, ZeroPadding2D, UpSampling2D
-from keras.layers.merge import _Merge
-
-from keras.models import Model, Sequential
-from keras import backend as K
-from keras.optimizers import Adam, RMSprop
-from keras.callbacks import ModelCheckpoint 
-from keras.utils import plot_model
-from keras.initializers import RandomNormal
+from tensorflow.keras.models import Model, Sequential
+from tensorflow.keras import backend as K
+from tensorflow.keras.optimizers import Adam, RMSprop
+from tensorflow.keras.callbacks import ModelCheckpoint 
+from tensorflow.keras.utils import plot_model
+from tensorflow.keras.initializers import RandomNormal
 
 from functools import partial
 
@@ -18,14 +17,20 @@ import pickle
 import matplotlib.pyplot as plt
 
 
-class RandomWeightedAverage(_Merge):
-    def __init__(self, batch_size):
-        super().__init__()
-        self.batch_size = batch_size
+class RandomWeightedAverage(Layer):
     """Provides a (random) weighted average between real and generated image samples"""
-    def _merge_function(self, inputs):
+    def __init__(self, batch_size, **kwargs):
+        super().__init__(**kwargs)
+        self.batch_size = batch_size
+    
+    def call(self, inputs):
         alpha = K.random_uniform((self.batch_size, 1, 1, 1))
         return (alpha * inputs[0]) + ((1 - alpha) * inputs[1])
+    
+    def get_config(self):
+        config = super().get_config()
+        config.update({"batch_size": self.batch_size})
+        return config
 
 class WGANGP():
     def __init__(self
@@ -80,7 +85,7 @@ class WGANGP():
         self.n_layers_critic = len(critic_conv_filters)
         self.n_layers_generator = len(generator_conv_filters)
 
-        self.weight_init = RandomNormal(mean=0., stddev=0.02) # 'he_normal' #RandomNormal(mean=0., stddev=0.02)
+        self.weight_init = RandomNormal(mean=0., stddev=0.02) # 'he_normal' #RandomNormal(mean=0., stddev=0.02)
         self.grad_weight = grad_weight
         self.batch_size = batch_size
 
@@ -117,7 +122,7 @@ class WGANGP():
 
     def get_activation(self, activation):
         if activation == 'leaky_relu':
-            layer = LeakyReLU(alpha = 0.2)
+            layer = LeakyReLU(negative_slope=0.2)
         else:
             layer = Activation(activation)
         return layer
@@ -149,10 +154,6 @@ class WGANGP():
                 x = Dropout(rate = self.critic_dropout_rate)(x)
 
         x = Flatten()(x)
-
-        # x = Dense(512, kernel_initializer = self.weight_init)(x)
-
-        # x = self.get_activation(self.critic_activation)(x)
         
         critic_output = Dense(1, activation=None
         , kernel_initializer = self.weight_init
@@ -219,11 +220,11 @@ class WGANGP():
 
     def get_opti(self, lr):
         if self.optimiser == 'adam':
-            opti = Adam(lr=lr, beta_1=0.5)
+            opti = Adam(learning_rate=lr, beta_1=0.5)
         elif self.optimiser == 'rmsprop':
-            opti = RMSprop(lr=lr)
+            opti = RMSprop(learning_rate=lr)
         else:
-            opti = Adam(lr=lr)
+            opti = Adam(learning_rate=lr)
 
         return opti
 
@@ -361,7 +362,7 @@ class WGANGP():
     def sample_images(self, run_folder):
         r, c = 5, 5
         noise = np.random.normal(0, 1, (r * c, self.z_dim))
-        gen_imgs = self.generator.predict(noise)
+        gen_imgs = self.generator.predict(noise, verbose=0)
 
         #Rescale images 0 - 1
 

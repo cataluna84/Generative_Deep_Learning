@@ -1,10 +1,10 @@
-
-from keras.layers import Input, Conv2D, Flatten, Dense, Conv2DTranspose, Reshape, Lambda, Activation, BatchNormalization, LeakyReLU, Dropout
-from keras.models import Model
-from keras import backend as K
-from keras.optimizers import Adam
-from keras.callbacks import ModelCheckpoint 
-from keras.utils import plot_model
+import tensorflow as tf
+from tensorflow.keras.layers import Input, Conv2D, Flatten, Dense, Conv2DTranspose, Reshape, Lambda, Activation, BatchNormalization, LeakyReLU, Dropout
+from tensorflow.keras.models import Model
+from tensorflow.keras import backend as K
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.callbacks import ModelCheckpoint 
+from tensorflow.keras.utils import plot_model
 
 from utils.callbacks import CustomCallback, step_decay_schedule 
 
@@ -90,7 +90,6 @@ class VariationalAutoencoder():
 
         self.encoder = Model(encoder_input, encoder_output)
         
-        
 
         ### THE DECODER
 
@@ -149,7 +148,7 @@ class VariationalAutoencoder():
             kl_loss = vae_kl_loss(y_true, y_pred)
             return  r_loss + kl_loss
 
-        optimizer = Adam(lr=learning_rate)
+        optimizer = Adam(learning_rate=learning_rate)
         self.model.compile(optimizer=optimizer, loss = vae_loss,  metrics = [vae_r_loss, vae_kl_loss])
 
 
@@ -216,8 +215,9 @@ class VariationalAutoencoder():
         callbacks_list = [checkpoint1, checkpoint2, custom_callback, lr_sched]
 
         self.model.save_weights(os.path.join(run_folder, 'weights/weights.h5'))
-                
-        self.model.fit_generator(
+        
+        # Updated: fit_generator is deprecated, use fit instead
+        self.model.fit(
             data_flow
             , shuffle = True
             , epochs = epochs
@@ -235,12 +235,3 @@ class VariationalAutoencoder():
 
     def getModel(self):
         return self.model
-
-        
-
-
-        
-
-        
-
-

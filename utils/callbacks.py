@@ -1,4 +1,5 @@
-from keras.callbacks import Callback, LearningRateScheduler
+import tensorflow as tf
+from tensorflow.keras.callbacks import Callback, LearningRateScheduler
 import numpy as np
 import matplotlib.pyplot as plt
 import os
@@ -7,15 +8,17 @@ import os
 class CustomCallback(Callback):
     
     def __init__(self, run_folder, print_every_n_batches, initial_epoch, vae):
+        super().__init__()
         self.epoch = initial_epoch
         self.run_folder = run_folder
         self.print_every_n_batches = print_every_n_batches
         self.vae = vae
 
-    def on_batch_end(self, batch, logs={}):  
+    def on_batch_end(self, batch, logs=None):
+        logs = logs or {}
         if batch % self.print_every_n_batches == 0:
             z_new = np.random.normal(size = (1,self.vae.z_dim))
-            reconst = self.vae.decoder.predict(np.array(z_new))[0].squeeze()
+            reconst = self.vae.decoder.predict(np.array(z_new), verbose=0)[0].squeeze()
 
             filepath = os.path.join(self.run_folder, 'images', 'img_' + str(self.epoch).zfill(3) + '_' + str(batch) + '.jpg')
             if len(reconst.shape) == 2:
@@ -23,7 +26,7 @@ class CustomCallback(Callback):
             else:
                 plt.imsave(filepath, reconst)
 
-    def on_epoch_begin(self, epoch, logs={}):
+    def on_epoch_begin(self, epoch, logs=None):
         self.epoch += 1
 
 
@@ -45,5 +48,6 @@ def inception_block():
 
     :return:
     '''
-    #Firdt layer defining
+    #First layer defining
     #input = Conv2D(filters)
+    pass

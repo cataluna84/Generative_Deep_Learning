@@ -1,14 +1,14 @@
-from keras.layers import Input, Conv2D, Flatten, Dense, Conv2DTranspose, Reshape, Lambda, Activation, \
-    BatchNormalization, LeakyReLU, Dropout, ZeroPadding2D, UpSampling2D, Reshape, Permute, RepeatVector, Concatenate, \
-    Conv3D
-from keras.layers.merge import _Merge
+import tensorflow as tf
+from tensorflow.keras.layers import Input, Conv2D, Flatten, Dense, Conv2DTranspose, Reshape, Lambda, Activation, \
+    BatchNormalization, LeakyReLU, Dropout, ZeroPadding2D, UpSampling2D, Permute, RepeatVector, Concatenate, \
+    Conv3D, Layer
 
-from keras.models import Model, Sequential
-from keras import backend as K
-from keras.optimizers import Adam, RMSprop
-from keras.callbacks import ModelCheckpoint
-from keras.utils import plot_model
-from keras.initializers import RandomNormal
+from tensorflow.keras.models import Model, Sequential
+from tensorflow.keras import backend as K
+from tensorflow.keras.optimizers import Adam, RMSprop
+from tensorflow.keras.callbacks import ModelCheckpoint
+from tensorflow.keras.utils import plot_model
+from tensorflow.keras.initializers import RandomNormal
 
 from functools import partial
 
@@ -21,19 +21,21 @@ import matplotlib.pyplot as plt
 from music21 import midi
 from music21 import note, stream, duration, tempo
 
-from IPython.core.debugger import set_trace
 
-
-class RandomWeightedAverage(_Merge):
-    def __init__(self, batch_size):
-        super().__init__()
+class RandomWeightedAverage(Layer):
+    """Provides a (random) weighted average between real and generated image samples"""
+    def __init__(self, batch_size, **kwargs):
+        super().__init__(**kwargs)
         self.batch_size = batch_size
 
-    """Provides a (random) weighted average between real and generated image samples"""
-
-    def _merge_function(self, inputs):
+    def call(self, inputs):
         alpha = K.random_uniform((self.batch_size, 1, 1, 1, 1))
         return (alpha * inputs[0]) + ((1 - alpha) * inputs[1])
+    
+    def get_config(self):
+        config = super().get_config()
+        config.update({"batch_size": self.batch_size})
+        return config
 
 
 class MuseGAN():
@@ -67,7 +69,7 @@ class MuseGAN():
         self.n_steps_per_bar = n_steps_per_bar
         self.n_pitches = n_pitches
 
-        self.weight_init = RandomNormal(mean=0., stddev=0.02)  #  'he_normal' #RandomNormal(mean=0., stddev=0.02)
+        self.weight_init = RandomNormal(mean=0., stddev=0.02)  #  'he_normal' #RandomNormal(mean=0., stddev=0.02)
         self.grad_weight = grad_weight
         self.batch_size = batch_size
 
@@ -103,7 +105,7 @@ class MuseGAN():
 
     def get_activation(self, activation):
         if activation == 'leaky_relu':
-            layer = LeakyReLU(alpha=0.2)
+            layer = LeakyReLU(negative_slope=0.2)
         else:
             layer = Activation(activation)
         return layer
@@ -207,7 +209,7 @@ class MuseGAN():
 
         # CHORDS -> TEMPORAL NETWORK
         self.chords_tempNetwork = self.TemporalNetwork()
-        self.chords_tempNetwork.name = 'temporal_network'
+        self.chords_tempNetwork._name = 'temporal_network'
         chords_over_time = self.chords_tempNetwork(chords_input)  # [n_bars, z_dim]
 
         # MELODY -> TEMPORAL NETWORK
@@ -247,11 +249,11 @@ class MuseGAN():
 
     def get_opti(self, lr):
         if self.optimiser == 'adam':
-            opti = Adam(lr=lr, beta_1=0.5, beta_2=0.9)
+            opti = Adam(learning_rate=lr, beta_1=0.5, beta_2=0.9)
         elif self.optimiser == 'rmsprop':
-            opti = RMSprop(lr=lr)
+            opti = RMSprop(learning_rate=lr)
         else:
-            opti = Adam(lr=lr)
+            opti = Adam(learning_rate=lr)
 
         return opti
 
@@ -267,16 +269,9 @@ class MuseGAN():
         #       for the Critic
         # -------------------------------
 
-        # Debug 1: Added to reflect the generator's compile
-        # self.generator.compile(optimizer=self.get_opti(self.generator_learning_rate)
-        #                    , loss=self.wasserstein
-        #                    )
-        # print("Debug 1")
-
         # Freeze generator's layers while training critic
         self.set_trainable(self.generator, False)
 
-        # print("Debug 2")
         # Image input (real sample)
         real_img = Input(shape=self.input_dim)
 
@@ -362,9 +357,6 @@ class MuseGAN():
         melody_noise = np.random.normal(0, 1, (batch_size, self.n_tracks, self.z_dim))
         groove_noise = np.random.normal(0, 1, (batch_size, self.n_tracks, self.z_dim))
 
-        # Debug 2: Issue
-        # set_trace()
-
         d_loss = self.critic_model.train_on_batch([true_imgs, chords_noise, style_noise, melody_noise, groove_noise],
                                                   [valid, fake, dummy])
         return d_loss
@@ -390,9 +382,6 @@ class MuseGAN():
             else:
                 critic_loops = n_critic
 
-            # Debug 1
-            # set_trace()
-
             for _ in range(critic_loops):
                 d_loss = self.train_critic(x_train, batch_size, using_generator)
 
@@ -412,12 +401,6 @@ class MuseGAN():
 
                 self.critic.save_weights(os.path.join(run_folder, 'weights/weights-c.h5'))
 
-                # with open(os.path.join(run_folder,"generator.json", "w") as json_file:
-                #     json_file.write(self.generator.to_json())
-
-                # with open(os.path.join(run_folder,"critic.json", "w") as json_file:
-                #     json_file.write(self.critic.to_json())
-
                 self.save_model(run_folder)
 
             if epoch % 500 == 0:
@@ -434,7 +417,7 @@ class MuseGAN():
         melody_noise = np.random.normal(0, 1, (r, self.n_tracks, self.z_dim))
         groove_noise = np.random.normal(0, 1, (r, self.n_tracks, self.z_dim))
 
-        gen_scores = self.generator.predict([chords_noise, style_noise, melody_noise, groove_noise])
+        gen_scores = self.generator.predict([chords_noise, style_noise, melody_noise, groove_noise], verbose=0)
 
         np.save(os.path.join(run_folder, "images/sample_%d.npy" % self.epoch), gen_scores)
 
@@ -517,7 +500,6 @@ class MuseGAN():
         self.model.save(os.path.join(run_folder, 'model.h5'))
         self.critic.save(os.path.join(run_folder, 'critic.h5'))
         self.generator.save(os.path.join(run_folder, 'generator.h5'))
-        # pickle.dump(self, open( os.path.join(run_folder, "obj.pkl"), "wb" ))
 
     def load_weights(self, run_folder, epoch=None):
 

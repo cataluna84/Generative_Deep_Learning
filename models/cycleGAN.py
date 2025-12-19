@@ -1,19 +1,18 @@
 from __future__ import print_function, division
-import scipy
+import tensorflow as tf
 
-from keras_contrib.layers.normalization.instancenormalization import InstanceNormalization
-from keras.layers import Input, Dense, Reshape, Flatten, Dropout, Concatenate
-from keras.layers import BatchNormalization, Activation, ZeroPadding2D, Add
-from keras.layers.advanced_activations import LeakyReLU, ELU
-from keras.layers.convolutional import UpSampling2D, Conv2D, Conv2DTranspose
-from keras.layers.merge import add
-from models.layers.layers import ReflectionPadding2D
-from keras.models import Sequential, Model
-from keras.initializers import RandomNormal
-from keras.optimizers import Adam
-from keras import backend as K
+# Use our custom InstanceNormalization instead of keras_contrib
+from models.layers.layers import InstanceNormalization, ReflectionPadding2D
 
-from keras.utils import plot_model
+from tensorflow.keras.layers import Input, Dense, Reshape, Flatten, Dropout, Concatenate
+from tensorflow.keras.layers import BatchNormalization, Activation, ZeroPadding2D, Add
+from tensorflow.keras.layers import LeakyReLU, UpSampling2D, Conv2D, Conv2DTranspose
+from tensorflow.keras.layers import add
+from tensorflow.keras.models import Sequential, Model
+from tensorflow.keras.initializers import RandomNormal
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras import backend as K
+from tensorflow.keras.utils import plot_model
 
 import datetime
 import matplotlib.pyplot as plt
@@ -80,10 +79,10 @@ class CycleGAN():
         self.d_B = self.build_discriminator()
 
         self.d_A.compile(loss='mse',
-                         optimizer=Adam(self.learning_rate, 0.5),
+                         optimizer=Adam(learning_rate=self.learning_rate, beta_1=0.5),
                          metrics=['accuracy'])
         self.d_B.compile(loss='mse',
-                         optimizer=Adam(self.learning_rate, 0.5),
+                         optimizer=Adam(learning_rate=self.learning_rate, beta_1=0.5),
                          metrics=['accuracy'])
 
         # Build the generators
@@ -127,7 +126,7 @@ class CycleGAN():
                               loss_weights=[self.lambda_validation, self.lambda_validation,
                                             self.lambda_reconstr, self.lambda_reconstr,
                                             self.lambda_id, self.lambda_id],
-                              optimizer=Adam(0.0002, 0.5))
+                              optimizer=Adam(learning_rate=0.0002, beta_1=0.5))
 
         self.d_A.trainable = True
         self.d_B.trainable = True
@@ -244,7 +243,7 @@ class CycleGAN():
             if norm:
                 y = InstanceNormalization(axis=-1, center=False, scale=False)(y)
 
-            y = LeakyReLU(0.2)(y)
+            y = LeakyReLU(negative_slope=0.2)(y)
 
             return y
 
@@ -262,8 +261,8 @@ class CycleGAN():
     def train_discriminators(self, imgs_A, imgs_B, valid, fake):
 
         # Translate images to opposite domain
-        fake_B = self.g_AB.predict(imgs_A)
-        fake_A = self.g_BA.predict(imgs_B)
+        fake_B = self.g_AB.predict(imgs_A, verbose=0)
+        fake_A = self.g_BA.predict(imgs_B, verbose=0)
 
         self.buffer_B.append(fake_B)
         self.buffer_A.append(fake_A)
@@ -356,15 +355,15 @@ class CycleGAN():
                 imgs_B = data_loader.load_img('data/%s/testB/%s' % (data_loader.dataset_name, test_B_file))
 
             # Translate images to the other domain
-            fake_B = self.g_AB.predict(imgs_A)
-            fake_A = self.g_BA.predict(imgs_B)
+            fake_B = self.g_AB.predict(imgs_A, verbose=0)
+            fake_A = self.g_BA.predict(imgs_B, verbose=0)
             # Translate back to original domain
-            reconstr_A = self.g_BA.predict(fake_B)
-            reconstr_B = self.g_AB.predict(fake_A)
+            reconstr_A = self.g_BA.predict(fake_B, verbose=0)
+            reconstr_B = self.g_AB.predict(fake_A, verbose=0)
 
             # ID the images
-            id_A = self.g_BA.predict(imgs_A)
-            id_B = self.g_AB.predict(imgs_B)
+            id_A = self.g_BA.predict(imgs_A, verbose=0)
+            id_B = self.g_AB.predict(imgs_B, verbose=0)
 
             gen_imgs = np.concatenate([imgs_A, fake_B, reconstr_A, id_A, imgs_B, fake_A, reconstr_B, id_B])
 

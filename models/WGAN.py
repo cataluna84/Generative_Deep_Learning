@@ -1,13 +1,12 @@
+import tensorflow as tf
+from tensorflow.keras.layers import Input, Conv2D, Flatten, Dense, Conv2DTranspose, Reshape, Lambda, Activation, BatchNormalization, LeakyReLU, Dropout, ZeroPadding2D, UpSampling2D, Layer
 
-from keras.layers import Input, Conv2D, Flatten, Dense, Conv2DTranspose, Reshape, Lambda, Activation, BatchNormalization, LeakyReLU, Dropout, ZeroPadding2D, UpSampling2D
-from keras.layers.merge import _Merge
-
-from keras.models import Model, Sequential
-from keras import backend as K
-from keras.optimizers import Adam, RMSprop
-from keras.callbacks import ModelCheckpoint 
-from keras.utils import plot_model
-from keras.initializers import RandomNormal
+from tensorflow.keras.models import Model, Sequential
+from tensorflow.keras import backend as K
+from tensorflow.keras.optimizers import Adam, RMSprop
+from tensorflow.keras.callbacks import ModelCheckpoint 
+from tensorflow.keras.utils import plot_model
+from tensorflow.keras.initializers import RandomNormal
 
 import numpy as np
 import json
@@ -87,7 +86,7 @@ class WGAN():
 
     def get_activation(self, activation):
         if activation == 'leaky_relu':
-            layer = LeakyReLU(alpha = 0.2)
+            layer = LeakyReLU(negative_slope=0.2)
         else:
             layer = Activation(activation)
         return layer
@@ -195,11 +194,11 @@ class WGAN():
 
     def get_opti(self, lr):
         if self.optimiser == 'adam':
-            opti = Adam(lr=lr, beta_1=0.5)
+            opti = Adam(learning_rate=lr, beta_1=0.5)
         elif self.optimiser == 'rmsprop':
-            opti = RMSprop(lr=lr)
+            opti = RMSprop(learning_rate=lr)
         else:
-            opti = Adam(lr=lr)
+            opti = Adam(learning_rate=lr)
 
         return opti
 
@@ -251,7 +250,7 @@ class WGAN():
         
         
         noise = np.random.normal(0, 1, (batch_size, self.z_dim))
-        gen_imgs = self.generator.predict(noise)
+        gen_imgs = self.generator.predict(noise, verbose=0)
 
         d_loss_real =   self.critic.train_on_batch(true_imgs, valid)
         d_loss_fake =   self.critic.train_on_batch(gen_imgs, fake)
@@ -261,17 +260,6 @@ class WGAN():
             weights = l.get_weights()
             weights = [np.clip(w, -clip_threshold, clip_threshold) for w in weights]
             l.set_weights(weights)
-
-        # for l in self.critic.layers:
-        
-        #     weights = l.get_weights()
-        #     if 'batch_normalization' in l.get_config()['name']:
-        #         pass
-        #         # weights = [np.clip(w, -0.01, 0.01) for w in weights[:2]] + weights[2:]
-        #     else:
-        #         weights = [np.clip(w, -0.01, 0.01) for w in weights]
-            
-        #     l.set_weights(weights)
 
         return [d_loss, d_loss_real, d_loss_fake]
 
@@ -311,7 +299,7 @@ class WGAN():
     def sample_images(self, run_folder):
         r, c = 5, 5
         noise = np.random.normal(0, 1, (r * c, self.z_dim))
-        gen_imgs = self.generator.predict(noise)
+        gen_imgs = self.generator.predict(noise, verbose=0)
 
         #Rescale images 0 - 1
 
@@ -372,4 +360,3 @@ class WGAN():
 
     def load_weights(self, filepath):
         self.model.load_weights(filepath)
-

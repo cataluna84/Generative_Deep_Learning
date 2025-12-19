@@ -1,23 +1,20 @@
 import pickle
 import os
 
-from keras.datasets import mnist, cifar100, cifar10
-from keras.preprocessing.image import ImageDataGenerator, load_img, save_img, img_to_array
+import tensorflow as tf
+from tensorflow.keras.datasets import mnist, cifar100, cifar10
+from tensorflow.keras.preprocessing.image import ImageDataGenerator, load_img, save_img, img_to_array
+from tensorflow.keras.applications import vgg19
+from tensorflow.keras import backend as K
+from tensorflow.keras.utils import to_categorical
 
 import pandas as pd
-
 import numpy as np
 from os import walk, getcwd
 import h5py
-
-import scipy
-import scipy.misc
-
 from glob import glob
-
-from keras.applications import vgg19
-from keras import backend as K
-from keras.utils import to_categorical
+from PIL import Image
+from skimage.transform import resize as skimage_resize
 
 import pdb
 
@@ -77,12 +74,12 @@ class DataLoader():
         for img_path in batch_images:
             img = self.imread(img_path)
             if not is_testing:
-                img = scipy.misc.imresize(img, self.img_res)
+                img = self.imresize(img, self.img_res)
 
                 if np.random.random() > 0.5:
                     img = np.fliplr(img)
             else:
-                img = scipy.misc.imresize(img, self.img_res)
+                img = self.imresize(img, self.img_res)
             imgs.append(img)
 
         imgs = np.array(imgs) / 127.5 - 1.
@@ -110,8 +107,8 @@ class DataLoader():
                 img_A = self.imread(img_A)
                 img_B = self.imread(img_B)
 
-                img_A = scipy.misc.imresize(img_A, self.img_res)
-                img_B = scipy.misc.imresize(img_B, self.img_res)
+                img_A = self.imresize(img_A, self.img_res)
+                img_B = self.imresize(img_B, self.img_res)
 
                 if not is_testing and np.random.random() > 0.5:
                     img_A = np.fliplr(img_A)
@@ -127,12 +124,20 @@ class DataLoader():
 
     def load_img(self, path):
         img = self.imread(path)
-        img = scipy.misc.imresize(img, self.img_res)
+        img = self.imresize(img, self.img_res)
         img = img / 127.5 - 1.
         return img[np.newaxis, :, :, :]
 
     def imread(self, path):
-        return scipy.misc.imread(path, mode='RGB').astype(np.float)
+        """Read image using PIL (replacement for scipy.misc.imread)"""
+        img = Image.open(path).convert('RGB')
+        return np.array(img).astype(np.float64)
+    
+    def imresize(self, img, size):
+        """Resize image using skimage (replacement for scipy.misc.imresize)"""
+        # skimage.transform.resize expects (height, width) and returns float64 in [0, 1]
+        resized = skimage_resize(img, size, preserve_range=True, anti_aliasing=True)
+        return resized.astype(np.float64)
 
 
 def load_model(model_class, folder):
@@ -193,7 +198,7 @@ def load_safari(folder):
 
     slice_train = int(80000 / len(txt_name_list))  ###Setting value to be 80000 for the final dataset
     i = 0
-    seed = np.random.randint(1, 10e6)
+    seed = np.random.randint(1, int(10e6))
 
     for txt_name in txt_name_list:
         txt_path = os.path.join(mypath, txt_name)

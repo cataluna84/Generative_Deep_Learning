@@ -8,9 +8,9 @@ https://learning.oreilly.com/library/view/generative-deep-learning/9781492041931
 
 https://www.amazon.com/Generative-Deep-Learning-Teaching-Machines/dp/1492041947/ref=sr_1_1
 
-## Tensorflow
+## TensorFlow
 
-This branch uses standalone Keras with a Tensorflow 2.1 version of the codebase.
+This project uses TensorFlow 2.16+ with Keras 3.0+ and is compatible with Python 3.13+.
 
 ## Structure
 
@@ -24,8 +24,31 @@ The `utils` folder stores useful functions that are sourced by the main notebook
 
 ## Getting started
 
-To get started, first install the required libraries inside a virtual environment:
+This project uses [uv](https://docs.astral.sh/uv/) for fast, reliable package management.
 
-`conda create --name \<env> --file requirements.txt` 
+### Install uv
 
-Activate the environment and start the jupyter notebook for traversing the 'ipynb' files
+```bash
+# Linux/macOS
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Windows (PowerShell)
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+### Set up the project
+
+```bash
+# Create virtual environment and install dependencies
+uv venv
+uv pip install -r requirements.txt
+
+# Activate the environment
+# Linux/macOS
+source .venv/bin/activate
+# Windows
+.venv\Scripts\activate
+
+# Start JupyterLab
+jupyter lab
+```

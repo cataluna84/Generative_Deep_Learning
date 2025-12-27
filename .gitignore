@@ -1,16 +1,11 @@
+# UV package manager
+uv.lock
+.venv/
 
-run/gan/*
-run/compose/*
-run/paint/*
-run/write/*
-run/vae/*
+# W&B
+wandb/
 
-
-
-archive/*
-
-models/archive/*
-
+docs/history.twbx
 
 .DS_Store
 

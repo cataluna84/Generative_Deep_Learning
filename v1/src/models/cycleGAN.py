@@ -2,7 +2,7 @@ from __future__ import print_function, division
 import tensorflow as tf
 
 # Use our custom InstanceNormalization instead of keras_contrib
-from models.layers.layers import InstanceNormalization, ReflectionPadding2D
+from src.models.layers.layers import InstanceNormalization, ReflectionPadding2D
 
 from tensorflow.keras.layers import Input, Dense, Reshape, Flatten, Dropout, Concatenate
 from tensorflow.keras.layers import BatchNormalization, Activation, ZeroPadding2D, Add

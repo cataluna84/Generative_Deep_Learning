@@ -38,37 +38,53 @@ bash scripts/download_gutenburg_data.sh
 
 ```
 Generative_Deep_Learning/
-├── models/                 # Generative model implementations
-│   ├── AE.py              # Autoencoder base class
-│   ├── VAE.py             # Variational Autoencoder
-│   ├── GAN.py             # Generative Adversarial Network
-│   ├── WGAN.py            # Wasserstein GAN
-│   ├── WGANGP.py          # WGAN with Gradient Penalty
-│   ├── cycleGAN.py        # Cycle-Consistent GAN
-│   ├── MuseGAN.py         # Multi-track Music GAN
-│   ├── RNNAttention.py    # RNN with Attention mechanism
-│   └── layers/            # Custom Keras layers
-├── utils/                  # Utility modules
-│   ├── loaders.py         # Data loading functions
-│   ├── callbacks.py       # Custom Keras callbacks
-│   └── write.py           # Output/visualization utilities
-├── scripts/               # Data download scripts
-├── data/                  # Dataset storage (gitignored)
-├── run/                   # Model outputs and generated samples
-├── *.ipynb                # Chapter notebooks (02-09)
-└── pyproject.toml         # Project dependencies
+├── v1/                     # 1st Edition (2019) - 22 notebooks
+│   ├── notebooks/          # Notebooks and scripts
+│   ├── scripts/            # Data download scripts
+│   └── src/
+│       ├── models/         # AE, VAE, GAN, WGAN, WGANGP, CycleGAN, MuseGAN
+│       └── utils/          # Loaders, callbacks, visualization
+├── v2/                     # 2nd Edition (2023) - Organized by chapter
+│   ├── 02_deeplearning/    # MLP, CNN basics
+│   ├── 03_vae/             # Variational Autoencoders
+│   ├── 04_gan/             # GANs
+│   ├── 05_autoregressive/  # LSTM, Transformers
+│   ├── 06_normflow/        # Normalizing Flows
+│   ├── 07_ebm/             # Energy-Based Models
+│   ├── 08_diffusion/       # Diffusion Models
+│   ├── 09_transformer/     # Attention
+│   ├── 11_music/           # Music generation
+│   ├── src/                # Models (built incrementally)
+│   ├── utils.py            # Shared utilities
+│   └── wandb_utils.py      # W&B integration
+├── docker/                 # Docker configuration
+│   ├── Dockerfile.cpu      # CPU-only image
+│   ├── Dockerfile.gpu      # GPU image (nvidia-docker)
+│   ├── launch-docker-cpu.sh
+│   └── launch-docker-gpu.sh
+├── utils/                  # Shared utilities
+│   └── wandb_utils.py      # W&B integration helpers
+├── data/                   # Dataset storage (gitignored)
+├── run/                    # Model outputs and generated samples
+├── documentation/          # Setup guides
+└── pyproject.toml          # Project dependencies
 ```
 
-### Notebook Organization (by Chapter)
-| Chapter | Topic | Notebooks |
-|---------|-------|-----------|
-| 02 | Deep Learning Basics | `02_01_*`, `02_02_*`, `02_03_*` |
-| 03 | Autoencoders & VAEs | `03_01_*` to `03_06_*` |
-| 04 | GANs | `04_01_*` to `04_03_*` |
-| 05 | CycleGAN | `05_01_*` |
-| 06 | Text & QA | `06_01_*` to `06_03_*` |
-| 07 | Music Generation | `07_01_*` to `07_05_*` |
-| 09 | Transformers | `09_01_*` |
+### Import Patterns
+
+**From v1/ notebooks:**
+```python
+from src.models.VAE import VariationalAutoencoder
+from src.utils.loaders import load_data
+import sys; sys.path.insert(0, '..')
+from utils.wandb_utils import init_wandb
+```
+
+**From v2/ notebooks (e.g., v2/03_vae/01_autoencoder/):**
+```python
+import sys; sys.path.insert(0, '../..')
+from utils.wandb_utils import init_wandb
+```
 
 ---
 
@@ -91,8 +107,8 @@ from tensorflow import keras
 from keras import layers, Model, backend as K
 
 # 3. Local imports
-from models.AE import Autoencoder
-from utils.loaders import load_data
+from src.models.AE import Autoencoder
+from src.utils.loaders import load_data
 ```
 
 ### Keras 3.0+ Patterns
@@ -131,14 +147,15 @@ import keras.ops as ops
 
 ### ⚠️ Critical Notes
 
-1. **TensorFlow 2.16+ / Keras 3.0+ Migration**
+1. **TensorFlow 2.20+ / Keras 3.0+ Migration**
    - Use `keras.*` imports, NOT `tf.keras.*`
    - Save models as `.keras`, not `.h5`
    - Use `keras.ops` for backend-agnostic operations
    - Lambda layers need explicit `output_shape` parameter
+   - Use `learning_rate` not deprecated `lr` for optimizers
 
 2. **GPU/CUDA Requirements**
-   - TensorFlow 2.16+ requires CUDA 12.x and cuDNN 9.x
+   - TensorFlow 2.20+ requires CUDA 12.x and cuDNN 9.x
    - For CPU-only, TensorFlow will work but training is slow
    - Check GPU: `python -c "import tensorflow as tf; print(tf.config.list_physical_devices('GPU'))"`
 
@@ -159,13 +176,34 @@ import keras.ops as ops
 - Do NOT modify files in `data/` or `run/` directories without backup
 - Do NOT run notebooks without first downloading required datasets
 - Do NOT use `tensorflow.python.*` internal APIs
+- Do NOT create intermediate Python files for notebook debugging
 
 ### ✅ Always
 
 - Always verify imports work with: `uv run python -c "import keras; print(keras.__version__)"`
-- Always run notebooks from project root directory
+- Always run v1 notebooks from `v1/` directory
+- Always run v2 notebooks from their chapter subdirectory
 - Always check GPU availability before long training runs
 - Always backup trained models before retraining
+- Always enable GPU memory growth in the first cell of notebooks
+
+---
+
+## W&B Integration Pattern
+
+```python
+import wandb
+from wandb.integration.keras import WandbMetricsLogger
+
+wandb.init(
+    project="generative-deep-learning",
+    name="chapter-experiment",
+    config={"epochs": 50, "batch_size": 32}
+)
+
+model.fit(x, y, callbacks=[WandbMetricsLogger()])
+wandb.finish()
+```
 
 ---
 
@@ -174,5 +212,5 @@ import keras.ops as ops
 To use this file with Google Gemini CLI, add to `.gemini/settings.json`:
 
 ```json
-{"context":{"fileName":["AGENTS.md","GEMINI.md"]}}
+{"context":{"fileName":["agents.md","GEMINI.md"]}}
 ```

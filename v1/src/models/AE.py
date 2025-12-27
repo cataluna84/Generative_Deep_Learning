@@ -6,7 +6,7 @@ from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import ModelCheckpoint 
 from tensorflow.keras.utils import plot_model
 
-from utils.callbacks import CustomCallback, step_decay_schedule
+from src.utils.callbacks import CustomCallback, step_decay_schedule
 
 import numpy as np
 import json

@@ -29,8 +29,8 @@ dev = [
     "flake8-nb>=0.5.2",
 ]
 
-[tool.uv]
-dev-dependencies = [
+[dependency-groups]
+dev = [
     "pytest>=8.0.0",
 ]
 

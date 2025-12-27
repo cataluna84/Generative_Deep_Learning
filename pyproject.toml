@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     # Core Deep Learning
-    "tensorflow>=2.16.0",
+    "tensorflow[and-cuda]==2.20.0",
     "keras>=3.0.0",
     # Data Science
     "numpy>=1.26.0",

@@ -10,7 +10,8 @@ https://www.amazon.com/Generative-Deep-Learning-Teaching-Machines/dp/1492041947/
 
 ## TensorFlow
 
-This project uses TensorFlow 2.16+ with Keras 3.0+ and is compatible with Python 3.13+.
+This project uses TensorFlow 2.20.0 with Keras 3.0+ and is compatible with Python 3.13+.
+For GPU setup, please refer to [GPU Setup Guide](documentation/GPU_SETUP.md).
 
 ## Structure
 

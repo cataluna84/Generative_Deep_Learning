@@ -2,7 +2,7 @@
 # Compatible with Python 3.13 and TensorFlow 2.16+
 
 # Core Deep Learning (Latest Versions)
-tensorflow>=2.16.0
+tensorflow[and-cuda]==2.20.0
 keras>=3.0.0
 
 # Data Science

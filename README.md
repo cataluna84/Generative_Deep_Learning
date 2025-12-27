@@ -1,55 +1,39 @@
 # Generative Deep Learning
 
-Inspired by the official code repository, for examples in the O'Reilly book 'Generative Deep Learning'
-
-++ Experiments & research in progress
-
-https://learning.oreilly.com/library/view/generative-deep-learning/9781492041931/
-
-https://www.amazon.com/Generative-Deep-Learning-Teaching-Machines/dp/1492041947/ref=sr_1_1
-
-## TensorFlow
-
-This project uses TensorFlow 2.20.0 with Keras 3.0+ and is compatible with Python 3.13+.
-For GPU setup, please refer to [GPU Setup Guide](documentation/GPU_SETUP.md).
+Experiments based on O'Reilly's "Generative Deep Learning" books.
 
 ## Structure
 
-This repository is structured as follows:
+```
+├── v1/              # 1st Edition (2019) - 22 notebooks
+├── v2/              # 2nd Edition (2023) - Organized by chapter
+├── wandb_utils.py   # Shared W&B integration
+├── documentation/   # Setup guides
+└── data/            # Downloaded datasets
+```
 
-The notebooks for each chapter are in the root of the repository, prefixed with the chapter number.
-
-The `data` folder is where to download relevant data sources
-The `run` folder stores output from the generative models
-The `utils` folder stores useful functions that are sourced by the main notebooks
-
-## Getting started
-
-This project uses [uv](https://docs.astral.sh/uv/) for fast, reliable package management.
-
-### Install uv
+## Quick Start
 
 ```bash
-# Linux/macOS
+# Install uv
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Windows (PowerShell)
-powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+# Setup environment
+uv sync
+
+# Run Jupyter
+uv run jupyter lab
 ```
 
-### Set up the project
+## TensorFlow
 
-```bash
-# Create virtual environment and install dependencies
-uv venv
-uv pip install -r requirements.txt
+- Python 3.13+
+- TensorFlow 2.20 with CUDA
+- See [GPU Setup](documentation/GPU_SETUP.md)
 
-# Activate the environment
-# Linux/macOS
-source .venv/bin/activate
-# Windows
-.venv\Scripts\activate
+## Versions
 
-# Start JupyterLab
-jupyter lab
-```
+| Version | Book Edition | Notebooks |
+|---------|-------------|-----------|
+| v1/ | 1st Edition (2019) | 22 |
+| v2/ | 2nd Edition (2023) | 40+ |

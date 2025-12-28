@@ -216,28 +216,73 @@ For a detailed guide on standardizing notebooks (Config, W&B, LRFinder), see:
 
 ---
 
-## Learning Rate Tools
+## Callbacks & Learning Rate Tools
 
-We provide utilities for finding and scheduling learning rates in `utils/callbacks.py`.
+We provide utilities for training optimization in `utils/callbacks.py`.
 
-### LRFinder
-Finds the optimal initial learning rate by training for a few epochs with exponentially increasing LR.
+### LRFinder - Find Optimal Learning Rate
 
 ```python
 from utils.callbacks import LRFinder
+
 lr_finder = LRFinder(min_lr=1e-6, max_lr=1e-1)
-model.fit(..., callbacks=[lr_finder])
+model.fit(..., callbacks=[lr_finder], epochs=2)
+lr_finder.plot_loss()
+optimal_lr = lr_finder.get_optimal_lr()  # Uses 'recommended' by default
 ```
 
-### Dynamic Scheduler
-Reduces LR when validation loss plateaus.
+**Color-Coded Selection Methods:**
+
+| Color | Method | Description | Usage |
+|-------|--------|-------------|-------|
+| 🔴 | `'steepest'` | Steepest descent LR | Aggressive, fast training |
+| 🟠 | `'recommended'` ★ | Steepest / 3 | **DEFAULT - Balanced** |
+| 🟣 | `'valley'` | 80% loss decline | Robust, data-driven |
+| 🟢 | `'min_loss_10'` | Min loss LR / 10 | Conservative, stable |
+
+```python
+# Override selection method
+lr = lr_finder.get_optimal_lr(method='steepest')  # Aggressive
+lr = lr_finder.get_optimal_lr(method='valley')    # Robust
+```
+
+### get_lr_scheduler - Reduce LR on Plateau
 
 ```python
 from utils.callbacks import get_lr_scheduler
-model.fit(..., callbacks=[get_lr_scheduler()])
+
+# Without validation data (use 'loss')
+scheduler = get_lr_scheduler(monitor='loss', patience=5)
+
+# With validation data (use 'val_loss')
+scheduler = get_lr_scheduler(monitor='val_loss', patience=2)
 ```
 
----
+### get_early_stopping - Stop Training When Loss Plateaus
+
+```python
+from utils.callbacks import get_early_stopping
+
+early_stop = get_early_stopping(monitor='loss', patience=10)
+model.fit(x, y, epochs=200, callbacks=[early_stop])
+```
+
+### Recommended Callback Stack
+
+```python
+from utils.callbacks import LRFinder, get_lr_scheduler, get_early_stopping
+from wandb.integration.keras import WandbMetricsLogger
+
+callbacks = [
+    WandbMetricsLogger(),
+    get_lr_scheduler(monitor='loss', patience=5),
+    get_early_stopping(monitor='loss', patience=10),
+]
+model.fit(x, y, epochs=200, callbacks=callbacks)
+```
+
+**Full documentation:** [CALLBACKS.md](documentation/CALLBACKS.md)
+
 
 ## Gemini CLI Configuration
 

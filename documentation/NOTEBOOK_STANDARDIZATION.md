@@ -1,88 +1,186 @@
-# Notebook Standardization Workflow
+# Notebook Development & Standardization Guide
 
-This guide details the standard workflow for updating V1/V2 notebooks to include robust configuration, W&B tracking, and automatic learning rate optimization.
+This comprehensive guide covers notebook development workflow, debugging, and the standardization process for V1/V2 notebooks.
 
-## Goal
-Transform hardcoded, static notebooks into flexible, tracked, and optimized experiments.
+---
 
-## Recursive Update Steps
+## Part 1: Running & Debugging Notebooks
 
-For each notebook:
+### Start Jupyter Lab
 
-### 1. Extract Global Layout
-Move hardcoded parameters from the bottom of the notebook (training loop) to the top (after imports).
-
-```python
-# [New Cell] Global Configuration
-BATCH_SIZE = 64  # or 1024 depending on VRAM
-EPOCHS = 10
-OPTIMIZER_NAME = 'adam'
-DATASET_NAME = 'cifar10' # or whatever is appropriate
-MODEL_TYPE = 'cnn'
-LAYERS_DESC = '4_conv_2_dense' # descriptive string
+```bash
+uv run jupyter lab
 ```
 
-### 2. Configure W&B
-Initialize W&B early, but mark `learning_rate` as "auto" since we'll find it later.
+Navigate to `v1/notebooks/` or `v2/*/` and open the desired notebook.
+
+### Debugging Workflow
+
+Run cells sequentially with `Shift+Enter`. When an error occurs:
+
+1. **Read the full traceback** - identifies the exact line
+2. **Check variable types** - use `type(variable)` and `variable.shape`
+3. **Isolate the issue** - create a new cell to test specific operations
+
+### Common TensorFlow 2.20+ Updates
+
+| Old API | New API |
+|---------|---------|
+| `Adam(lr=0.001)` | `Adam(learning_rate=0.001)` |
+| `keras.layers.experimental.*` | `keras.layers.*` |
+| `model.predict_on_batch()` | `model(x, training=False)` |
+| `.h5` weights | `.weights.h5` or `.keras` |
+| `tf.keras.*` | `keras.*` |
+
+### GPU Memory Issues
+
+If kernel crashes with OOM, add to first cell:
 
 ```python
-# [Modify W&B Init Cell]
+import tensorflow as tf
+gpus = tf.config.list_physical_devices('GPU')
+if gpus:
+    tf.config.experimental.set_memory_growth(gpus[0], True)
+```
+
+### Kernel Management
+
+- **Restart kernel**: After modifying utility files in `utils/`
+- **Clear outputs**: Before committing to reduce file size
+
+---
+
+## Part 2: Notebook Standardization Workflow
+
+Transform hardcoded, static notebooks into flexible, tracked, and optimized experiments.
+
+### Step 1: Global Configuration
+
+Move hardcoded parameters to the top of the notebook (after imports).
+
+```python
+# ═══════════════════════════════════════════════════════════════════
+# GLOBAL CONFIGURATION
+# ═══════════════════════════════════════════════════════════════════
+BATCH_SIZE = 64
+EPOCHS = 200
+OPTIMIZER_NAME = 'adam'
+DATASET_NAME = 'cifar10'
+MODEL_TYPE = 'cnn'
+```
+
+### Step 2: W&B Initialization
+
+Initialize W&B early with `learning_rate: "auto"`.
+
+```python
+import wandb
+from utils.wandb_utils import init_wandb
+
 run = init_wandb(
-    name="02_03_cnn",
+    name="notebook-name",
     project="generative-deep-learning",
     config={
         "model": MODEL_TYPE,
         "dataset": DATASET_NAME,
-        "layers": LAYERS_DESC,
-        "learning_rate": "auto",
+        "learning_rate": "auto",  # Updated after LRFinder
         "batch_size": BATCH_SIZE,
         "epochs": EPOCHS,
-        "optimizer": OPTIMIZER_NAME,
     }
 )
 ```
 
-### 3. Insert LRFinder Block
-Before the main model training, insert the LRFinder workflow. **Crucially**, clone the model to avoid pre-training the main model weights.
+### Step 3: Learning Rate Finder
+
+Find optimal LR using a **cloned model**.
 
 ```python
-# [New Cell] Learning Rate Finder
-lr_model = tf.keras.models.clone_model(model) # Must be defined before this cell
-lr_opt = Adam(learning_rate=1e-6)
-lr_model.compile(loss='categorical_crossentropy', optimizer=lr_opt, metrics=['accuracy'])
+from utils.callbacks import LRFinder
+import tensorflow as tf
+from keras.optimizers import Adam
+
+lr_model = tf.keras.models.clone_model(model)
+lr_model.compile(loss='...', optimizer=Adam(learning_rate=1e-6), metrics=[...])
 
 lr_finder = LRFinder(min_lr=1e-6, max_lr=1e-1, steps=100)
-lr_model.fit(x_train, y_train,
-             batch_size=BATCH_SIZE,
-             steps_per_epoch=50,
-             epochs=2,
-             callbacks=[lr_finder],
-             verbose=0)
+lr_model.fit(x_train, y_train, batch_size=BATCH_SIZE, epochs=2, 
+             callbacks=[lr_finder], verbose=0)
 
 lr_finder.plot_loss()
-optimal_lr = lr_finder.get_optimal_lr()
-print(f"Optimal LR: {optimal_lr}")
-
-# Update W&B
+optimal_lr = lr_finder.get_optimal_lr()  # Default: 'recommended' (steepest/3)
 wandb.config.update({"learning_rate": optimal_lr})
 ```
 
-### 4. Update Main Training
-Use the detected `optimal_lr` and global constants.
+**Selection Methods:**
+
+| Color | Method | Description |
+|-------|--------|-------------|
+| 🔴 | `'steepest'` | Aggressive |
+| 🟠 | `'recommended'` ★ | **DEFAULT** - Steepest / 3 |
+| 🟣 | `'valley'` | Robust (80% decline) |
+| 🟢 | `'min_loss_10'` | Conservative |
+
+### Step 4: Training with Callbacks
 
 ```python
-# [Modify Optimizer Cell]
-opt = Adam(learning_rate=optimal_lr)
-model.compile(loss='categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
-```
+from utils.callbacks import get_lr_scheduler, get_early_stopping
+from wandb.integration.keras import WandbMetricsLogger
 
-```python
-# [Modify Fit Cell]
+model.compile(loss='...', optimizer=Adam(learning_rate=optimal_lr), metrics=[...])
+
 model.fit(
     x_train, y_train,
     batch_size=BATCH_SIZE,
     epochs=EPOCHS,
-    # ... other params ...
-    callbacks=[get_metrics_logger(), get_lr_scheduler()]
+    callbacks=[
+        WandbMetricsLogger(),
+        get_lr_scheduler(monitor='loss', patience=5),
+        get_early_stopping(monitor='loss', patience=10),
+    ]
 )
 ```
+
+### Step 5: Post-Training Visualization
+
+```python
+import matplotlib.pyplot as plt
+
+history = model.history.history
+fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+
+axes[0].plot(history['loss'], 'b-', linewidth=2)
+axes[0].set_title('Training Loss'); axes[0].grid(True, alpha=0.3)
+
+if 'learning_rate' in history:
+    axes[1].semilogy(history['learning_rate'], 'r-', linewidth=2)  # Log scale!
+    axes[1].set_title('Learning Rate Schedule'); axes[1].grid(True, alpha=0.3)
+
+plt.tight_layout(); plt.show()
+print(f"Initial: {history['loss'][0]:.4f} | Final: {history['loss'][-1]:.4f}")
+```
+
+### Step 6: Finalize
+
+```python
+wandb.finish()
+```
+
+---
+
+## Checklist
+
+- [ ] Global config at top
+- [ ] W&B init with `learning_rate: "auto"`
+- [ ] LRFinder on cloned model
+- [ ] Training with callbacks (`WandbMetricsLogger`, `get_lr_scheduler`, `get_early_stopping`)
+- [ ] Post-training history plot with `semilogy()` for LR
+- [ ] `wandb.finish()` at end
+
+---
+
+## Related Documentation
+
+- **[CALLBACKS.md](CALLBACKS.md)** - Full callback reference
+- **[WANDB_SETUP.md](WANDB_SETUP.md)** - W&B account setup
+- **[GPU_SETUP.md](GPU_SETUP.md)** - GPU configuration
+- **[UV_SETUP.md](UV_SETUP.md)** - UV package manager

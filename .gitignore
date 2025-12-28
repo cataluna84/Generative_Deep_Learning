@@ -17,6 +17,10 @@ __pycache__/
 # C extensions
 *.so
 
+#Autoencoder Output
+v1/notebooks/run/vae
+
+
 # Distribution / packaging
 .Python
 build/

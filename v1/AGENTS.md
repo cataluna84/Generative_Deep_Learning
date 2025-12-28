@@ -13,6 +13,7 @@ When working on notebooks in this directory, follow the **[Notebook Standardizat
 2.  **W&B**: Initialize with global config and `learning_rate="auto"`.
 3.  **LRFinder**: Insert the LRFinder workflow (Clone -> Find -> `plot_loss()` -> `get_optimal_lr()`) before main training.
 4.  **Integration**: Update `wandb.config` with the optimal LR and use it in the main optimizer.
+5.  **Finish**: Always call `wandb.finish()` at the end of the notebook.
 
 ## Do
 

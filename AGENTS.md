@@ -63,7 +63,8 @@ Generative_Deep_Learning/
 │   ├── launch-docker-cpu.sh
 │   └── launch-docker-gpu.sh
 ├── utils/                  # Shared utilities
-│   └── wandb_utils.py      # W&B integration helpers
+│   ├── wandb_utils.py      # W&B integration helpers
+│   └── callbacks.py        # Custom Keras callbacks (LRFinder, etc)
 ├── data/                   # Dataset storage (gitignored)
 ├── run/                    # Model outputs and generated samples
 ├── documentation/          # Setup guides
@@ -78,6 +79,7 @@ from src.models.VAE import VariationalAutoencoder
 from src.utils.loaders import load_data
 import sys; sys.path.insert(0, '..')
 from utils.wandb_utils import init_wandb
+from utils.callbacks import LRFinder, get_lr_scheduler
 ```
 
 **From v2/ notebooks (e.g., v2/03_vae/01_autoencoder/):**
@@ -207,10 +209,40 @@ wandb.finish()
 
 ---
 
+## Notebook Standardization
+
+For a detailed guide on standardizing notebooks (Config, W&B, LRFinder), see:
+[Notebook Standardization Guide](documentation/NOTEBOOK_STANDARDIZATION.md)
+
+---
+
+## Learning Rate Tools
+
+We provide utilities for finding and scheduling learning rates in `utils/callbacks.py`.
+
+### LRFinder
+Finds the optimal initial learning rate by training for a few epochs with exponentially increasing LR.
+
+```python
+from utils.callbacks import LRFinder
+lr_finder = LRFinder(min_lr=1e-6, max_lr=1e-1)
+model.fit(..., callbacks=[lr_finder])
+```
+
+### Dynamic Scheduler
+Reduces LR when validation loss plateaus.
+
+```python
+from utils.callbacks import get_lr_scheduler
+model.fit(..., callbacks=[get_lr_scheduler()])
+```
+
+---
+
 ## Gemini CLI Configuration
 
 To use this file with Google Gemini CLI, add to `.gemini/settings.json`:
 
 ```json
-{"context":{"fileName":["agents.md","GEMINI.md"]}}
+{"context":{"fileName":["AGENTS.md","GEMINI.md"]}}
 ```

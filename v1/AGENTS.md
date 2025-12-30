@@ -15,6 +15,16 @@ When working on notebooks in this directory, follow the **[Notebook Standardizat
 4.  **Integration**: Update `wandb.config` with the optimal LR and use it in the main optimizer.
 5.  **Finish**: Always call `wandb.finish()` at the end of the notebook.
 
+**Batch Size Optimization**: For 8GB VRAM GPUs, use `BATCH_SIZE = 1024` for simple datasets (MNIST, CIFAR).
+
+**VAE LRFinder**: When running LRFinder on VAEs, define a custom reconstruction loss:
+```python
+import keras.backend as K
+def vae_r_loss(y_true, y_pred):
+    return 1000 * K.mean(K.square(y_true - y_pred), axis=[1,2,3])
+model_clone.compile(loss=vae_r_loss, optimizer=Adam(learning_rate=1e-6))
+```
+
 ## Do
 
 - Import models from `src.models.*`

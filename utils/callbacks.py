@@ -3,7 +3,9 @@ import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
 from keras.callbacks import Callback, ReduceLROnPlateau
+from keras.callbacks import Callback, ReduceLROnPlateau
 import keras.backend as K
+import wandb
 
 class LRFinder(Callback):
     """
@@ -336,6 +338,7 @@ def get_early_stopping(monitor='loss', patience=10, min_delta=1e-4,
     """
     from keras.callbacks import EarlyStopping
     
+
     return EarlyStopping(
         monitor=monitor,
         patience=patience,
@@ -343,3 +346,16 @@ def get_early_stopping(monitor='loss', patience=10, min_delta=1e-4,
         restore_best_weights=restore_best_weights,
         verbose=verbose
     )
+
+
+class LRLogger(Callback):
+    """
+    Callback that logs the current learning rate to console and WandB.
+    Useful for verifying if schedulers are actually affecting the optimizer.
+    """
+    def on_epoch_end(self, epoch, logs=None):
+        lr = float(self.model.optimizer.learning_rate)
+        print(f"Epoch {epoch+1}: Learning Rate is {lr:.2e}")
+        if wandb.run is not None:
+            wandb.log({"learning_rate": lr}, commit=False)
+

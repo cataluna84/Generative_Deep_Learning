@@ -32,6 +32,11 @@ def init_wandb(
     Returns:
         wandb.run object
     """
+
+    if wandb.run is not None:
+        print(f"Finishing existing run: {wandb.run.name}")
+        wandb.finish()
+
     return wandb.init(
         project=project,
         name=name,

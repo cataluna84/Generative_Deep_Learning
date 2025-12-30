@@ -92,12 +92,25 @@ model.fit(x, y, epochs=200, callbacks=[early_stop])
 
 ---
 
+## LRLogger
+
+Logs the learning rate at the end of each epoch to console and W&B. Useful for debugging schedulers.
+
+```python
+from utils.callbacks import LRLogger
+
+lr_logger = LRLogger()
+model.fit(x, y, callbacks=[lr_logger])
+```
+
+---
+
 ## Recommended Callback Stack
 
 For typical training without validation data:
 
 ```python
-from utils.callbacks import LRFinder, get_lr_scheduler, get_early_stopping
+from utils.callbacks import LRFinder, get_lr_scheduler, get_early_stopping, LRLogger
 from wandb.integration.keras import WandbMetricsLogger
 
 # Step 1: Find optimal LR
@@ -111,6 +124,7 @@ callbacks = [
     WandbMetricsLogger(),                              # W&B logging
     get_lr_scheduler(monitor='loss', patience=5),      # Reduce LR on plateau
     get_early_stopping(monitor='loss', patience=10),   # Stop if no improvement
+    LRLogger(),                                        # Log learning rate
 ]
 
 model.compile(optimizer=Adam(learning_rate=optimal_lr), ...)

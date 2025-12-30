@@ -170,6 +170,7 @@ import keras.ops as ops
    - GANs and VAEs can consume significant GPU memory
    - Reduce batch size if encountering OOM errors
    - Use `tf.keras.backend.clear_session()` between experiments
+   - **Batch Size Optimization**: For 8GB VRAM, use `BATCH_SIZE = 1024` for simple datasets (MNIST/CIFAR)
 
 ### 🚫 Do NOT
 
@@ -231,6 +232,14 @@ lr_finder.plot_loss()
 optimal_lr = lr_finder.get_optimal_lr()  # Uses 'recommended' by default
 ```
 
+**VAE Note**: For VAEs with custom loss, define reconstruction loss before cloning:
+```python
+import keras.backend as K
+def vae_r_loss(y_true, y_pred):
+    return 1000 * K.mean(K.square(y_true - y_pred), axis=[1,2,3])
+lr_model.compile(loss=vae_r_loss, optimizer=Adam(learning_rate=1e-6))
+```
+
 **Color-Coded Selection Methods:**
 
 | Color | Method | Description | Usage |
@@ -270,13 +279,14 @@ model.fit(x, y, epochs=200, callbacks=[early_stop])
 ### Recommended Callback Stack
 
 ```python
-from utils.callbacks import LRFinder, get_lr_scheduler, get_early_stopping
+from utils.callbacks import LRFinder, get_lr_scheduler, get_early_stopping, LRLogger
 from wandb.integration.keras import WandbMetricsLogger
 
 callbacks = [
     WandbMetricsLogger(),
     get_lr_scheduler(monitor='loss', patience=5),
     get_early_stopping(monitor='loss', patience=10),
+    LRLogger()
 ]
 model.fit(x, y, epochs=200, callbacks=callbacks)
 ```

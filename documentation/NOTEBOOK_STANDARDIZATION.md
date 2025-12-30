@@ -59,15 +59,17 @@ Transform hardcoded, static notebooks into flexible, tracked, and optimized expe
 Move hardcoded parameters to the top of the notebook (after imports).
 
 ```python
-# ═══════════════════════════════════════════════════════════════════
 # GLOBAL CONFIGURATION
 # ═══════════════════════════════════════════════════════════════════
-BATCH_SIZE = 64
+BATCH_SIZE = 1024  # Optimized for 8GB VRAM (was 32)
 EPOCHS = 200
 OPTIMIZER_NAME = 'adam'
 DATASET_NAME = 'cifar10'
-MODEL_TYPE = 'cnn'
+MODEL_TYPE = 'vae'
 ```
+
+> [!TIP]
+> **Batch Size Optimization**: For 8GB VRAM GPUs, start with `BATCH_SIZE = 512` or `1024` for simple datasets (MNIST/CIFAR) to maximize utilization. Use `nvidia-smi -l 1` to monitor memory usage.
 
 ### Step 2: W&B Initialization
 
@@ -100,7 +102,14 @@ import tensorflow as tf
 from keras.optimizers import Adam
 
 lr_model = tf.keras.models.clone_model(model)
-lr_model.compile(loss='...', optimizer=Adam(learning_rate=1e-6), metrics=[...])
+
+# NOTE: For VAEs, define custom reconstruction loss
+# def vae_r_loss(y_true, y_pred):
+#     r_loss = K.mean(K.square(y_true - y_pred), axis=[1,2,3])
+#     return 1000 * r_loss
+# lr_model.compile(loss=vae_r_loss, optimizer=Adam(learning_rate=1e-6))
+
+lr_model.compile(loss='mse', optimizer=Adam(learning_rate=1e-6))
 
 lr_finder = LRFinder(min_lr=1e-6, max_lr=1e-1, steps=100)
 lr_model.fit(x_train, y_train, batch_size=BATCH_SIZE, epochs=2, 
@@ -123,7 +132,7 @@ wandb.config.update({"learning_rate": optimal_lr})
 ### Step 4: Training with Callbacks
 
 ```python
-from utils.callbacks import get_lr_scheduler, get_early_stopping
+from utils.callbacks import get_lr_scheduler, get_early_stopping, LRLogger
 from wandb.integration.keras import WandbMetricsLogger
 
 model.compile(loss='...', optimizer=Adam(learning_rate=optimal_lr), metrics=[...])
@@ -136,6 +145,7 @@ model.fit(
         WandbMetricsLogger(),
         get_lr_scheduler(monitor='loss', patience=5),
         get_early_stopping(monitor='loss', patience=10),
+        LRLogger(),
     ]
 )
 ```
@@ -172,7 +182,7 @@ wandb.finish()
 - [ ] Global config at top
 - [ ] W&B init with `learning_rate: "auto"`
 - [ ] LRFinder on cloned model
-- [ ] Training with callbacks (`WandbMetricsLogger`, `get_lr_scheduler`, `get_early_stopping`)
+- [ ] Training with callbacks (`WandbMetricsLogger`, `get_lr_scheduler`, `get_early_stopping`, `LRLogger`)
 - [ ] Post-training history plot with `semilogy()` for LR
 - [ ] `wandb.finish()` at end
 

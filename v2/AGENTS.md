@@ -14,6 +14,28 @@ Each chapter has subdirectories with specific experiments.
 - Save models to `notebooks/<chapter>/<experiment>/models/`
 - Clear all outputs before committing
 
+## Standardization Notes
+
+**Batch Size Optimization**: For 8GB VRAM GPUs, use `BATCH_SIZE = 1024` for simple datasets (MNIST, CIFAR).
+
+**LRFinder Workflow**: Before training, run LRFinder on a cloned model:
+```python
+from utils.callbacks import LRFinder
+
+lr_finder = LRFinder(min_lr=1e-6, max_lr=1e-1, steps=100)
+clone_model.fit(x, y, epochs=2, callbacks=[lr_finder])
+lr_finder.plot_loss()
+optimal_lr = lr_finder.get_optimal_lr()  # Default: 'recommended'
+```
+
+**VAE LRFinder**: For VAEs with custom loss:
+```python
+import keras.backend as K
+def vae_r_loss(y_true, y_pred):
+    return 1000 * K.mean(K.square(y_true - y_pred), axis=[1,2,3])
+clone_model.compile(loss=vae_r_loss, optimizer=Adam(learning_rate=1e-6))
+```
+
 ## Don't
 
 - Don't create intermediate Python files for debugging

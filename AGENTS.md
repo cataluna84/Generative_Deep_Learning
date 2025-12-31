@@ -179,10 +179,12 @@ import keras.ops as ops
 - Do NOT modify files in `data/` or `run/` directories without backup
 - Do NOT run notebooks without first downloading required datasets
 - Do NOT use `tensorflow.python.*` internal APIs
-- Do NOT create intermediate Python files for notebook debugging
+- Do NOT try to edit `.ipynb` files directly with text replacement tools
 
 ### ✅ Always
 
+- Always use intermediate Python scripts to edit `.ipynb` files (JSON format)
+  - Example: Write a Python script that loads, modifies, and saves the notebook JSON
 - Always verify imports work with: `uv run python -c "import keras; print(keras.__version__)"`
 - Always run v1 notebooks from `v1/` directory
 - Always run v2 notebooks from their chapter subdirectory

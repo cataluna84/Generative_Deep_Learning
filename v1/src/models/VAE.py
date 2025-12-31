@@ -213,16 +213,35 @@ class VariationalAutoencoder():
 
 
 
-    def train_with_generator(self, data_flow, epochs, steps_per_epoch, run_folder, print_every_n_batches = 100, initial_epoch = 0, lr_decay = 1, ):
+    def train_with_generator(self, data_flow, epochs, steps_per_epoch, run_folder,
+                              print_every_n_batches=100, initial_epoch=0, lr_decay=1,
+                              extra_callbacks=None):
+        """
+        Train the VAE using a data generator.
 
+        Args:
+            data_flow: Keras data generator (e.g., from ImageDataGenerator).
+            epochs: Number of training epochs.
+            steps_per_epoch: Number of batches per epoch.
+            run_folder: Folder to save weights and visualizations.
+            print_every_n_batches: Frequency of custom callback prints.
+            initial_epoch: Starting epoch (for resuming training).
+            lr_decay: Learning rate decay factor per epoch.
+            extra_callbacks: Optional list of additional Keras callbacks
+                             (e.g., WandbMetricsLogger, LRLogger).
+        """
         custom_callback = CustomCallback(run_folder, print_every_n_batches, initial_epoch, self)
         lr_sched = step_decay_schedule(initial_lr=self.learning_rate, decay_factor=lr_decay, step_size=1)
 
-        checkpoint_filepath=os.path.join(run_folder, "weights/weights-{epoch:03d}-{loss:.2f}.weights.h5")
-        checkpoint1 = ModelCheckpoint(checkpoint_filepath, save_weights_only = True, verbose=1)
-        checkpoint2 = ModelCheckpoint(os.path.join(run_folder, 'weights/weights.weights.h5'), save_weights_only = True, verbose=1)
+        checkpoint_filepath = os.path.join(run_folder, "weights/weights-{epoch:03d}-{loss:.2f}.weights.h5")
+        checkpoint1 = ModelCheckpoint(checkpoint_filepath, save_weights_only=True, verbose=1)
+        checkpoint2 = ModelCheckpoint(os.path.join(run_folder, 'weights/weights.weights.h5'), save_weights_only=True, verbose=1)
 
         callbacks_list = [checkpoint1, checkpoint2, custom_callback, lr_sched]
+
+        # Add any extra callbacks (e.g., W&B, LR scheduler, early stopping)
+        if extra_callbacks:
+            callbacks_list.extend(extra_callbacks)
 
         self.model.save_weights(os.path.join(run_folder, 'weights/weights.weights.h5'))
         

@@ -19,7 +19,7 @@ __pycache__/
 
 #Autoencoder Output
 v1/notebooks/run/vae
-
+v1/data
 
 # Distribution / packaging
 .Python

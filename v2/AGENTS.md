@@ -38,17 +38,37 @@ clone_model.compile(loss=vae_r_loss, optimizer=Adam(learning_rate=1e-6))
 
 ## Don't
 
-- Don't create intermediate Python files for debugging
 - Don't duplicate utility code - use `notebooks/utils.py` or `notebooks/wandb_utils.py`
 - Don't use deprecated `lr` parameter - use `learning_rate`
 - Don't hardcode absolute paths
+- Don't try to edit `.ipynb` files directly with text replacement tools
+
+## Editing Notebooks
+
+Since `.ipynb` files are JSON, use intermediate Python scripts to edit them:
+
+```python
+import json
+
+with open('notebook.ipynb', 'r') as f:
+    nb = json.load(f)
+
+# Modify cells as needed
+for cell in nb['cells']:
+    if cell['cell_type'] == 'code':
+        # Edit cell['source'] list
+        pass
+
+with open('notebook.ipynb', 'w') as f:
+    json.dump(nb, f, indent=1)
+```
 
 ## Debugging Workflow
 
 1. Run cells sequentially with `Shift+Enter`
 2. When error occurs, read full traceback
 3. Check variable shapes with `print(x.shape)`
-4. Fix directly in the cell - no intermediate files
+4. For programmatic fixes, use an intermediate Python script (see above)
 5. Re-run from the fixed cell
 
 ## TensorFlow 2.20 Updates

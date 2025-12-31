@@ -65,6 +65,80 @@ Navigate to `v1/notebooks/` or `v2/<chapter>/` and open a notebook.
 
 ---
 
+## Environment Setup (.env)
+
+This project requires a `.env` file for dataset downloads and experiment tracking. Create it by copying the template:
+
+```bash
+cp sample.env .env
+```
+
+Then edit `.env` with your credentials:
+
+```env
+JUPYTER_PORT=8888
+TENSORBOARD_PORT=6006
+KAGGLE_USERNAME=your_kaggle_username
+KAGGLE_KEY=your_kaggle_api_key
+WANDB_API_KEY=your_wandb_api_key
+WANDB_PROJECT=generative-deep-learning
+```
+
+### Getting Kaggle Credentials
+
+Kaggle credentials are required to download datasets like CelebA, CIFAR-10, etc.
+
+1. **Create a Kaggle account** at [kaggle.com](https://www.kaggle.com)
+2. Go to **Account Settings** → **API** → **Create New Token**
+3. This downloads `kaggle.json` containing your credentials:
+   ```json
+   {"username":"your_username","key":"your_api_key"}
+   ```
+4. Copy these values to your `.env` file:
+   - `KAGGLE_USERNAME` = `username` from kaggle.json
+   - `KAGGLE_KEY` = `key` from kaggle.json
+
+The dataset download scripts in `v1/scripts/` and `v2/scripts/` will automatically read these credentials.
+
+### Getting W&B (Weights & Biases) Credentials
+
+W&B is used for experiment tracking, loss visualization, and model comparison.
+
+1. **Create a W&B account** at [wandb.ai](https://wandb.ai)
+2. Go to **Settings** → **API Keys** → Copy your API key
+3. Set in `.env`:
+   - `WANDB_API_KEY` = your API key
+   - `WANDB_PROJECT` = project name (default: `generative-deep-learning`)
+
+Alternatively, log in via terminal:
+```bash
+wandb login
+```
+
+### Environment Variables Reference
+
+| Variable | Description | Required For |
+|----------|-------------|--------------|
+| `JUPYTER_PORT` | Local port for Jupyter Lab (default: 8888) | Docker |
+| `TENSORBOARD_PORT` | Local port for TensorBoard (default: 6006) | Docker |
+| `KAGGLE_USERNAME` | Your Kaggle username | Dataset downloads |
+| `KAGGLE_KEY` | Your Kaggle API key | Dataset downloads |
+| `WANDB_API_KEY` | Your W&B API key | Experiment tracking |
+| `WANDB_PROJECT` | W&B project name | Experiment tracking |
+
+### Verifying Setup
+
+```bash
+# Test Kaggle credentials
+source .env
+kaggle datasets list
+
+# Test W&B login
+wandb login --verify
+```
+
+---
+
 ## Requirements
 
 | Component | Requirement |

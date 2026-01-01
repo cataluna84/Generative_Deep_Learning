@@ -27,7 +27,9 @@ uv run jupyter lab
 # Run standalone Python scripts
 uv run python <script_name>.py
 
-# Download datasets (run from project root)
+# Download datasets (run from v1/ directory)
+bash scripts/download_celeba_kaggle.sh
+bash scripts/download_camel_data.sh
 bash scripts/download_cyclegan_data.sh
 bash scripts/download_gutenburg_data.sh
 ```
@@ -39,10 +41,13 @@ bash scripts/download_gutenburg_data.sh
 ```
 Generative_Deep_Learning/
 ├── v1/                     # 1st Edition (2019) - 22 notebooks
-│   ├── notebooks/          # Notebooks and scripts
+│   ├── notebooks/          # Jupyter notebooks (.ipynb)
 │   ├── scripts/            # Data download scripts
+│   ├── data/               # Downloaded datasets (gitignored)
+│   ├── run/                # Model outputs (gitignored)
 │   └── src/
 │       ├── models/         # AE, VAE, GAN, WGAN, WGANGP, CycleGAN, MuseGAN
+│       │   └── layers/     # Custom layers (InstanceNorm, ReflectionPadding)
 │       └── utils/          # Loaders, callbacks, visualization
 ├── v2/                     # 2nd Edition (2023) - Organized by chapter
 │   ├── 02_deeplearning/    # MLP, CNN basics
@@ -54,38 +59,46 @@ Generative_Deep_Learning/
 │   ├── 08_diffusion/       # Diffusion Models
 │   ├── 09_transformer/     # Attention
 │   ├── 11_music/           # Music generation
-│   ├── src/                # Models (built incrementally)
-│   ├── utils.py            # Shared utilities
-│   └── wandb_utils.py      # W&B integration
-├── docker/                 # Docker configuration
-│   ├── Dockerfile.cpu      # CPU-only image
-│   ├── Dockerfile.gpu      # GPU image (nvidia-docker)
-│   ├── launch-docker-cpu.sh
-│   └── launch-docker-gpu.sh
-├── utils/                  # Shared utilities
-│   ├── wandb_utils.py      # W&B integration helpers
-│   └── callbacks.py        # Custom Keras callbacks (LRFinder, etc)
-├── data/                   # Dataset storage (gitignored)
-├── run/                    # Model outputs and generated samples
+│   ├── src/                # V2 models & utilities
+│   └── utils.py            # Shared V2 utilities
+├── utils/                  # Shared root utilities
+│   ├── callbacks.py        # LRFinder, LRLogger, get_lr_scheduler, get_early_stopping
+│   └── wandb_utils.py      # W&B integration helpers
+├── docker/                 # Docker configuration (CPU/GPU)
 ├── documentation/          # Setup guides
-└── pyproject.toml          # Project dependencies
+│   ├── UV_SETUP.md
+│   ├── GPU_SETUP.md
+│   ├── WANDB_SETUP.md
+│   ├── CALLBACKS.md
+│   ├── CELEBA_SETUP.md
+│   └── NOTEBOOK_STANDARDIZATION.md
+├── .agent/workflows/       # Custom AI agent workflows
+├── pyproject.toml          # Project dependencies
+└── sample.env              # Environment template
 ```
 
-### Import Patterns
+---
 
-**From v1/ notebooks:**
+## Import Patterns
+
+**From v1/notebooks:**
 ```python
+# Local model imports
 from src.models.VAE import VariationalAutoencoder
+from src.models.AE import Autoencoder
 from src.utils.loaders import load_data
+
+# Root utilities (requires sys.path)
 import sys; sys.path.insert(0, '..')
 from utils.wandb_utils import init_wandb
-from utils.callbacks import LRFinder, get_lr_scheduler
+from utils.callbacks import LRFinder, get_lr_scheduler, get_early_stopping, LRLogger
 ```
 
-**From v2/ notebooks (e.g., v2/03_vae/01_autoencoder/):**
+**From v2/notebooks (e.g., v2/03_vae/01_autoencoder/):**
 ```python
 import sys; sys.path.insert(0, '../..')
 from utils.wandb_utils import init_wandb
+from utils.callbacks import LRFinder, get_lr_scheduler
 ```
 
 ---
@@ -96,6 +109,7 @@ from utils.wandb_utils import init_wandb
 - **Model classes**: PascalCase with descriptive names (e.g., `VariationalAutoencoder`, `CycleGAN`)
 - **Files**: snake_case matching class/notebook content
 - **Variables**: snake_case throughout
+- **Constants**: UPPER_SNAKE_CASE (e.g., `BATCH_SIZE`, `EPOCHS`)
 
 ### Import Order
 ```python
@@ -105,8 +119,9 @@ import numpy as np
 
 # 2. Third-party (TensorFlow/Keras first)
 import tensorflow as tf
-from tensorflow import keras
-from keras import layers, Model, backend as K
+from keras import layers, Model
+from keras.optimizers import Adam
+import keras.backend as K
 
 # 3. Local imports
 from src.models.AE import Autoencoder
@@ -159,18 +174,20 @@ import keras.ops as ops
 2. **GPU/CUDA Requirements**
    - TensorFlow 2.20+ requires CUDA 12.x and cuDNN 9.x
    - For CPU-only, TensorFlow will work but training is slow
-   - Check GPU: `python -c "import tensorflow as tf; print(tf.config.list_physical_devices('GPU'))"`
+   - Check GPU: `uv run python -c "import tensorflow as tf; print(tf.config.list_physical_devices('GPU'))"`
 
 3. **Data Downloads Required**
    - Most notebooks require downloading datasets first
-   - Run scripts in `scripts/` folder before running notebooks
-   - CelebA, CIFAR-10, and text corpora are NOT included in repo
+   - Run scripts in `v1/scripts/` folder before running notebooks
+   - CelebA, Camel, and text corpora are NOT included in repo
 
 4. **Memory Management**
    - GANs and VAEs can consume significant GPU memory
    - Reduce batch size if encountering OOM errors
    - Use `tf.keras.backend.clear_session()` between experiments
-   - **Batch Size Optimization**: For 8GB VRAM, use `BATCH_SIZE = 1024` for simple datasets (MNIST/CIFAR)
+   - **Batch Size Optimization**: For 8GB VRAM:
+     - Simple datasets (MNIST/CIFAR): `BATCH_SIZE = 1024`
+     - Face datasets (CelebA): `BATCH_SIZE = 256-384`
 
 ### 🚫 Do NOT
 
@@ -184,9 +201,8 @@ import keras.ops as ops
 ### ✅ Always
 
 - Always use intermediate Python scripts to edit `.ipynb` files (JSON format)
-  - Example: Write a Python script that loads, modifies, and saves the notebook JSON
 - Always verify imports work with: `uv run python -c "import keras; print(keras.__version__)"`
-- Always run v1 notebooks from `v1/` directory
+- Always run v1 notebooks from `v1/notebooks/` directory
 - Always run v2 notebooks from their chapter subdirectory
 - Always check GPU availability before long training runs
 - Always backup trained models before retraining
@@ -202,8 +218,12 @@ from wandb.integration.keras import WandbMetricsLogger
 
 wandb.init(
     project="generative-deep-learning",
-    name="chapter-experiment",
-    config={"epochs": 50, "batch_size": 32}
+    name="experiment-name",
+    config={
+        "learning_rate": "auto",  # Updated after LRFinder
+        "batch_size": 384,
+        "epochs": 200
+    }
 )
 
 model.fit(x, y, callbacks=[WandbMetricsLogger()])
@@ -228,7 +248,7 @@ We provide utilities for training optimization in `utils/callbacks.py`.
 ```python
 from utils.callbacks import LRFinder
 
-lr_finder = LRFinder(min_lr=1e-6, max_lr=1e-1)
+lr_finder = LRFinder(min_lr=1e-6, max_lr=1e-1, steps=100)
 model.fit(..., callbacks=[lr_finder], epochs=2)
 lr_finder.plot_loss()
 optimal_lr = lr_finder.get_optimal_lr()  # Uses 'recommended' by default
@@ -251,12 +271,6 @@ lr_model.compile(loss=vae_r_loss, optimizer=Adam(learning_rate=1e-6))
 | 🟣 | `'valley'` | 80% loss decline | Robust, data-driven |
 | 🟢 | `'min_loss_10'` | Min loss LR / 10 | Conservative, stable |
 
-```python
-# Override selection method
-lr = lr_finder.get_optimal_lr(method='steepest')  # Aggressive
-lr = lr_finder.get_optimal_lr(method='valley')    # Robust
-```
-
 ### get_lr_scheduler - Reduce LR on Plateau
 
 ```python
@@ -278,6 +292,15 @@ early_stop = get_early_stopping(monitor='loss', patience=10)
 model.fit(x, y, epochs=200, callbacks=[early_stop])
 ```
 
+### LRLogger - Log Learning Rate Each Epoch
+
+```python
+from utils.callbacks import LRLogger
+
+lr_logger = LRLogger()
+model.fit(x, y, callbacks=[lr_logger])
+```
+
 ### Recommended Callback Stack
 
 ```python
@@ -295,6 +318,20 @@ model.fit(x, y, epochs=200, callbacks=callbacks)
 
 **Full documentation:** [CALLBACKS.md](documentation/CALLBACKS.md)
 
+---
+
+## Documentation Index
+
+| Guide | Description |
+|-------|-------------|
+| [UV_SETUP.md](documentation/UV_SETUP.md) | UV package manager installation |
+| [GPU_SETUP.md](documentation/GPU_SETUP.md) | TensorFlow GPU/CUDA configuration |
+| [WANDB_SETUP.md](documentation/WANDB_SETUP.md) | Weights & Biases integration |
+| [CALLBACKS.md](documentation/CALLBACKS.md) | LRFinder, schedulers, early stopping |
+| [CELEBA_SETUP.md](documentation/CELEBA_SETUP.md) | CelebA dataset download & setup |
+| [NOTEBOOK_STANDARDIZATION.md](documentation/NOTEBOOK_STANDARDIZATION.md) | Notebook development workflow |
+
+---
 
 ## Gemini CLI Configuration
 

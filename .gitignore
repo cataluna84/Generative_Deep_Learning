@@ -18,8 +18,8 @@ __pycache__/
 *.so
 
 #Autoencoder Output
-v1/notebooks/run/vae
-v1/data
+v1/run/vae
+v1/data/img_align_celeba
 
 # Distribution / packaging
 .Python

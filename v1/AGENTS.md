@@ -1,58 +1,209 @@
 # AGENTS.md - V1 (1st Edition)
 
+> Context for AI agents working with V1 notebooks from the 1st Edition (2019) of "Generative Deep Learning".
+
+---
+
 ## Context
 
-This directory contains the notebooks from the **1st Edition (2019)** of "Generative Deep Learning".
+This directory contains notebooks from the **1st Edition (2019)** of "Generative Deep Learning", covering:
+- Autoencoders (AE)
+- Variational Autoencoders (VAE)
+- GANs (GAN, WGAN, WGANGP)
+- CycleGAN
+- MuseGAN
+- LSTM Text Generation
 
-## Standard Workflow (Recursive Plan)
+---
 
-When working on notebooks in this directory, follow the **[Notebook Standardization Guide](../../documentation/NOTEBOOK_STANDARDIZATION.md)**.
-
-**Summary of changes to apply recursively:**
-1.  **Global Config**: Move `BATCH_SIZE`, `EPOCHS`, etc. to top-level variables.
-2.  **W&B**: Initialize with global config and `learning_rate="auto"`.
-3.  **LRFinder**: Insert the LRFinder workflow (Clone -> Find -> `plot_loss()` -> `get_optimal_lr()`) before main training.
-4.  **Integration**: Update `wandb.config` with the optimal LR and use it in the main optimizer.
-5.  **Finish**: Always call `wandb.finish()` at the end of the notebook.
-
-**Batch Size Optimization**: For 8GB VRAM GPUs, use `BATCH_SIZE = 1024` for simple datasets (MNIST, CIFAR).
-
-**VAE LRFinder**: When running LRFinder on VAEs, define a custom reconstruction loss:
-```python
-import keras.backend as K
-def vae_r_loss(y_true, y_pred):
-    return 1000 * K.mean(K.square(y_true - y_pred), axis=[1,2,3])
-model_clone.compile(loss=vae_r_loss, optimizer=Adam(learning_rate=1e-6))
-```
-
-## Do
-
-- Import models from `src.models.*`
-- Import utils from `src.utils.*`
-- Use shared root utilities:
-  - `utils.wandb_utils`: For Weights & Biases tracking.
-  - `utils.callbacks`: For `LRFinder` and `get_lr_scheduler`.
-- Enable GPU memory growth in the first cell (`tf.config.experimental.set_memory_growth`).
-
-## Don't
-
-- **Don't** hardcode training parameters (batch size, epochs) in `model.fit()`.
-- **Don't** modify TF 1.x style code unless explicitly updating/refactoring.
-- **Don't** commit model weights to git.
-
-## Key Differences from V2
-
-- Uses `src.models.*` imports (vs V2 which might use local or different structure).
-- Often assumes being run from `v1/notebooks/` or similar, requiring `sys.path` adjustments.
-
-## Structure
+## Directory Structure
 
 ```
 v1/
-├── notebooks/       # The actual .ipynb files
-├── scripts/         # Data download scripts
+├── notebooks/              # 22 Jupyter notebooks
+│   ├── 02_*                # Deep Learning basics (MLP, CNN)
+│   ├── 03_*                # Autoencoders & VAEs
+│   ├── 04_*                # GANs (GAN, WGAN, WGANGP)
+│   ├── 05_*                # CycleGAN
+│   ├── 06_*                # Text generation (LSTM, Q&A)
+│   ├── 07_*                # Music generation (MuseGAN)
+│   └── 09_*                # Positional encoding
+├── scripts/                # Data download scripts
+│   ├── download_camel_data.sh
+│   ├── download_celeba_kaggle.sh
+│   ├── download_cyclegan_data.sh
+│   └── download_gutenburg_data.sh
+├── data/                   # Downloaded datasets (gitignored)
+├── run/                    # Model outputs (gitignored)
 ├── src/
-│   ├── models/      # Legacy model definitions
-│   └── utils/       # Legacy loaders
-└── AGENTS.md        # This file
+│   ├── models/             # Model implementations
+│   │   ├── AE.py           # Autoencoder
+│   │   ├── VAE.py          # Variational Autoencoder
+│   │   ├── GAN.py          # Vanilla GAN
+│   │   ├── WGAN.py         # Wasserstein GAN
+│   │   ├── WGANGP.py       # WGAN with Gradient Penalty
+│   │   ├── cycleGAN.py     # Image-to-image translation
+│   │   ├── MuseGAN.py      # Music generation
+│   │   ├── RNNAttention.py # Attention for sequences
+│   │   └── layers/         # Custom layers
+│   └── utils/              # Loaders, preprocessing
+│       ├── loaders.py
+│       ├── callbacks.py
+│       └── write.py
+└── AGENTS.md               # This file
 ```
+
+---
+
+## Standard Workflow
+
+When working on notebooks in this directory, follow the **[Notebook Standardization Guide](../documentation/NOTEBOOK_STANDARDIZATION.md)**.
+
+### Quick Reference
+
+1. **GPU Memory Growth**: Add to first cell:
+   ```python
+   import tensorflow as tf
+   gpus = tf.config.list_physical_devices('GPU')
+   if gpus:
+       for gpu in gpus:
+           tf.config.experimental.set_memory_growth(gpu, True)
+   ```
+
+2. **Global Config**: Move `BATCH_SIZE`, `EPOCHS`, etc. to top-level variables.
+
+3. **W&B**: Initialize with global config and `learning_rate="auto"`:
+   ```python
+   import wandb
+   wandb.init(project="generative-deep-learning", config={
+       "learning_rate": "auto",
+       "batch_size": BATCH_SIZE,
+       "epochs": EPOCHS
+   })
+   ```
+
+4. **LRFinder**: Run on cloned model before training:
+   ```python
+   from utils.callbacks import LRFinder
+   lr_finder = LRFinder(min_lr=1e-6, max_lr=1e-1, steps=100)
+   lr_model.fit(x, y, epochs=2, callbacks=[lr_finder])
+   lr_finder.plot_loss()
+   optimal_lr = lr_finder.get_optimal_lr()
+   wandb.config.update({"learning_rate": optimal_lr})
+   ```
+
+5. **Training Callbacks**:
+   ```python
+   from utils.callbacks import get_lr_scheduler, get_early_stopping, LRLogger
+   from wandb.integration.keras import WandbMetricsLogger
+   
+   callbacks = [
+       WandbMetricsLogger(),
+       get_lr_scheduler(monitor='loss', patience=5),
+       get_early_stopping(monitor='loss', patience=10),
+       LRLogger(),
+   ]
+   ```
+
+6. **Finish**: Always call `wandb.finish()` at the end.
+
+---
+
+## Batch Size Optimization
+
+| Dataset | 8GB VRAM | 6GB VRAM |
+|---------|----------|----------|
+| MNIST/CIFAR | 1024 | 512 |
+| CelebA (128×128) | 256-384 | 128-256 |
+| Camel drawings | 512-1024 | 256-512 |
+
+---
+
+## VAE LRFinder
+
+When running LRFinder on VAEs, define a custom reconstruction loss:
+
+```python
+import keras.backend as K
+from keras.optimizers import Adam
+
+def vae_r_loss(y_true, y_pred):
+    return 1000 * K.mean(K.square(y_true - y_pred), axis=[1,2,3])
+
+lr_model = tf.keras.models.clone_model(vae.model)
+lr_model.compile(loss=vae_r_loss, optimizer=Adam(learning_rate=1e-6))
+```
+
+---
+
+## Import Patterns
+
+```python
+# Model imports (from v1/notebooks/)
+from src.models.VAE import VariationalAutoencoder
+from src.models.AE import Autoencoder
+from src.models.GAN import GAN
+from src.utils.loaders import load_data
+
+# Root utilities (requires path adjustment)
+import sys; sys.path.insert(0, '..')
+from utils.wandb_utils import init_wandb
+from utils.callbacks import LRFinder, get_lr_scheduler, get_early_stopping, LRLogger
+```
+
+---
+
+## Do ✅
+
+- Import models from `src.models.*`
+- Import utils from `src.utils.*`
+- Use shared root utilities (`utils.wandb_utils`, `utils.callbacks`)
+- Enable GPU memory growth in the first cell
+- Run notebooks from `v1/notebooks/` directory
+- Download datasets before running notebooks
+
+## Don't 🚫
+
+- **Don't** hardcode training parameters in `model.fit()`
+- **Don't** modify TF 1.x style code unless explicitly refactoring
+- **Don't** commit model weights to git
+- **Don't** edit `.ipynb` files directly with text replacement tools
+- **Don't** use deprecated `lr` parameter (use `learning_rate`)
+
+---
+
+## Component Specifics
+
+### VAE Training
+- **Learning Rate Scheduling**: The `VAE.train_with_generator` method has an `lr_decay` parameter (default 1).
+  - If `lr_decay != 1`: An internal `step_decay_schedule` is added.
+  - If `lr_decay == 1`: No internal scheduler, external callbacks (e.g., `ReduceLROnPlateau`) work correctly.
+
+### AE/VAE Save/Load
+```python
+# Save model
+AE.save("run/ae/model")
+
+# Load model
+AE.load_weights("run/ae/model/weights.keras")
+```
+
+---
+
+## Data Download Scripts
+
+| Script | Dataset | Required For |
+|--------|---------|--------------|
+| `download_camel_data.sh` | Quick Draw Camel | `04_01_gan_camel_train.ipynb` |
+| `download_celeba_kaggle.sh` | CelebA Faces | `03_05_vae_faces_train.ipynb`, `04_03_wgangp_faces_train.ipynb` |
+| `download_cyclegan_data.sh` | Apple2Orange | `05_01_cyclegan_train.ipynb` |
+| `download_gutenburg_data.sh` | Project Gutenberg | `06_01_lstm_text_train.ipynb` |
+
+---
+
+## Related Documentation
+
+- **[../documentation/NOTEBOOK_STANDARDIZATION.md](../documentation/NOTEBOOK_STANDARDIZATION.md)** - Complete workflow
+- **[../documentation/CALLBACKS.md](../documentation/CALLBACKS.md)** - Callback reference
+- **[../documentation/CELEBA_SETUP.md](../documentation/CELEBA_SETUP.md)** - CelebA setup
+- **[../documentation/GPU_SETUP.md](../documentation/GPU_SETUP.md)** - GPU configuration

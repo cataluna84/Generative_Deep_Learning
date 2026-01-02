@@ -19,7 +19,6 @@ All code and notebooks in this repository adhere to the following standards:
 ## Project Structure
 
 ```
-```
 Generative_Deep_Learning/
 ├── scripts/                # Notebook standardization scripts
 │   ├── standardize_gan_notebook.py

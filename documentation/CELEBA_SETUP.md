@@ -20,8 +20,7 @@ Use the provided download script:
 
 ```bash
 # From project root
-cd v1
-bash scripts/download_celeba_kaggle.sh
+bash v1/data_download_scripts/download_celeba_kaggle.sh
 ```
 
 **Prerequisites:**

@@ -14,6 +14,18 @@ This directory contains notebooks from the **1st Edition (2019)** of "Generative
 - MuseGAN
 - LSTM Text Generation
 
+## Coding Standards
+
+Ensure all notebooks and source code in `v1/` meet these requirements:
+
+1.  **PEP 8 compliant code formatting**
+2.  **Comprehensive documentation and comments**
+3.  **Dynamic batch size and epoch scaling**
+4.  **W&B integration for experiment tracking**
+5.  **Step decay LR scheduler**
+6.  **Enhanced training visualizations**
+7.  **Kernel restart cell for GPU memory release**
+
 ---
 
 ## Directory Structure
@@ -28,7 +40,7 @@ v1/
 │   ├── 06_*                # Text generation (LSTM, Q&A)
 │   ├── 07_*                # Music generation (MuseGAN)
 │   └── 09_*                # Positional encoding
-├── scripts/                # Data download scripts
+├── data_download_scripts/  # Data download scripts
 │   ├── download_camel_data.sh
 │   ├── download_celeba_kaggle.sh
 │   ├── download_cyclegan_data.sh
@@ -71,6 +83,12 @@ When working on notebooks in this directory, follow the **[Notebook Standardizat
    ```
 
 2. **Global Config**: Move `BATCH_SIZE`, `EPOCHS`, etc. to top-level variables.
+   - **Recommended**: Use `utils/gpu_utils.py` for dynamic batch size scaling based on VRAM.
+   ```python
+   from utils.gpu_utils import get_optimal_batch_size, calculate_adjusted_epochs, get_gpu_vram_gb
+   GPU_VRAM_GB = get_gpu_vram_gb()
+   BATCH_SIZE = get_optimal_batch_size('gan', vram_gb=GPU_VRAM_GB)
+   ```
 
 3. **W&B**: Initialize with global config and `learning_rate="auto"`:
    ```python
@@ -78,7 +96,8 @@ When working on notebooks in this directory, follow the **[Notebook Standardizat
    wandb.init(project="generative-deep-learning", config={
        "learning_rate": "auto",
        "batch_size": BATCH_SIZE,
-       "epochs": EPOCHS
+       "epochs": EPOCHS,
+       "gpu_vram": GPU_VRAM_GB
    })
    ```
 
@@ -106,6 +125,13 @@ When working on notebooks in this directory, follow the **[Notebook Standardizat
    ```
 
 6. **Finish**: Always call `wandb.finish()` at the end.
+
+7. **Kernel Restart**: Add a final cell to restart kernel and release GPU memory:
+   ```python
+   import IPython
+   print("Restarting kernel to release GPU memory...")
+   IPython.Application.instance().kernel.do_shutdown(restart=True)
+   ```
 
 ---
 
@@ -167,7 +193,7 @@ from utils.callbacks import LRFinder, get_lr_scheduler, get_early_stopping, LRLo
 - **Don't** hardcode training parameters in `model.fit()`
 - **Don't** modify TF 1.x style code unless explicitly refactoring
 - **Don't** commit model weights to git
-- **Don't** edit `.ipynb` files directly with text replacement tools
+- **Don't** edit `.ipynb` files directly with text replacement tools (use intermediate Python scripts in `scripts/` folder instead)
 - **Don't** use deprecated `lr` parameter (use `learning_rate`)
 
 ---
@@ -179,13 +205,23 @@ from utils.callbacks import LRFinder, get_lr_scheduler, get_early_stopping, LRLo
   - If `lr_decay != 1`: An internal `step_decay_schedule` is added.
   - If `lr_decay == 1`: No internal scheduler, external callbacks (e.g., `ReduceLROnPlateau`) work correctly.
 
-### AE/VAE Save/Load
-```python
-# Save model
-AE.save("run/ae/model")
+### Model Saving (Keras 3.0+)
 
-# Load model
-AE.load_weights("run/ae/model/weights.keras")
+> [!IMPORTANT]
+> Use native `.keras` format for full models and `.weights.h5` for weights only.
+> The legacy `.h5` format is deprecated and will emit warnings.
+
+```python
+# Save full model (use .keras, NOT .h5)
+model.save("run/ae/model.keras")
+discriminator.save("run/gan/discriminator.keras")
+generator.save("run/gan/generator.keras")
+
+# Save weights only (use .weights.h5)
+model.save_weights("run/ae/weights.weights.h5")
+
+# Load weights
+model.load_weights("run/ae/weights.weights.h5")
 ```
 
 ---

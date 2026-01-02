@@ -2,12 +2,32 @@
 
 Experiments based on O'Reilly's "Generative Deep Learning" books (1st & 2nd Editions).
 
+## Project Standards
+
+All code and notebooks in this repository adhere to the following standards:
+
+- [x] **PEP 8 compliant code formatting**
+- [x] **Comprehensive documentation and comments**
+- [x] **Dynamic batch size and epoch scaling**
+- [x] **W&B integration for experiment tracking**
+- [x] **Step decay LR scheduler**
+- [x] **Enhanced training visualizations**
+- [x] **Kernel restart cell for GPU memory release**
+
 ---
 
 ## Project Structure
 
 ```
+```
 Generative_Deep_Learning/
+├── scripts/                # Notebook standardization scripts
+│   ├── standardize_gan_notebook.py
+│   └── update_notebook_cell.py
+├── utils/                  # Shared root utilities
+│   ├── callbacks.py        # LRFinder, LRLogger, get_lr_scheduler, get_early_stopping
+│   ├── wandb_utils.py      # W&B integration helpers
+│   └── gpu_utils.py        # Dynamic VRAM-based batch/epoch scaling
 ├── v1/                     # 1st Edition (2019) - 22 notebooks
 │   ├── notebooks/          # Jupyter notebooks (.ipynb)
 │   │   ├── 02_*            # Deep Learning basics (MLP, CNN)
@@ -16,8 +36,8 @@ Generative_Deep_Learning/
 │   │   ├── 05_*            # CycleGAN
 │   │   ├── 06_*            # Text generation (LSTM, Q&A)
 │   │   ├── 07_*            # Music generation (MuseGAN)
-│   │   └── 09_*            # Positional encoding
-│   ├── scripts/            # Data download scripts
+│   │   └── 09_*                # Positional encoding
+│   ├── data_download_scripts/  # Data download scripts
 │   │   ├── download_camel_data.sh
 │   │   ├── download_celeba_kaggle.sh
 │   │   ├── download_cyclegan_data.sh
@@ -46,10 +66,6 @@ Generative_Deep_Learning/
 │   ├── utils.py            # Shared V2 utilities
 │   └── AGENTS.md           # V2-specific AI agent context
 │
-├── utils/                  # Shared root utilities
-│   ├── callbacks.py        # LRFinder, LRLogger, get_lr_scheduler, get_early_stopping
-│   └── wandb_utils.py      # W&B integration helpers
-│
 ├── docker/                 # Docker configuration
 │   ├── Dockerfile.cpu      # CPU-only image
 │   ├── Dockerfile.gpu      # GPU image (nvidia-docker)
@@ -68,7 +84,6 @@ Generative_Deep_Learning/
 ├── .agent/                 # AI agent workflows
 │   └── workflows/          # Custom workflow definitions
 │
-├── scripts/                # Root-level scripts
 ├── tests/                  # Test files
 ├── AGENTS.md               # Root AI agent context
 ├── pyproject.toml          # UV/uv dependencies
@@ -136,7 +151,7 @@ Kaggle credentials are required to download datasets like CelebA, CIFAR-10, etc.
    - `KAGGLE_USERNAME` = `username` from kaggle.json
    - `KAGGLE_KEY` = `key` from kaggle.json
 
-The dataset download scripts in `v1/scripts/` will automatically read these credentials.
+The dataset download scripts in `v1/data_download_scripts/` will automatically read these credentials.
 
 ### Getting W&B (Weights & Biases) Credentials
 

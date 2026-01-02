@@ -27,12 +27,28 @@ uv run jupyter lab
 # Run standalone Python scripts
 uv run python <script_name>.py
 
-# Download datasets (run from v1/ directory)
-bash scripts/download_celeba_kaggle.sh
-bash scripts/download_camel_data.sh
-bash scripts/download_cyclegan_data.sh
-bash scripts/download_gutenburg_data.sh
+# Notebook standardization scripts (from project root)
+uv run python scripts/update_notebook_cell.py
+uv run python scripts/standardize_gan_notebook.py
+
+# Download datasets (from project root, scripts in v1/data_download_scripts/)
+bash v1/data_download_scripts/download_celeba_kaggle.sh
+bash v1/data_download_scripts/download_camel_data.sh
+bash v1/data_download_scripts/download_cyclegan_data.sh
+bash v1/data_download_scripts/download_gutenburg_data.sh
 ```
+
+## Coding Standards
+
+Ensure all deliverables meet these requirements:
+
+1.  **PEP 8 compliant code formatting**
+2.  **Comprehensive documentation and comments**
+3.  **Dynamic batch size and epoch scaling**
+4.  **W&B integration for experiment tracking**
+5.  **Step decay LR scheduler**
+6.  **Enhanced training visualizations**
+7.  **Kernel restart cell for GPU memory release**
 
 ---
 
@@ -40,9 +56,16 @@ bash scripts/download_gutenburg_data.sh
 
 ```
 Generative_Deep_Learning/
+├── scripts/                # Notebook standardization scripts
+│   ├── standardize_gan_notebook.py
+│   └── update_notebook_cell.py
+├── utils/                  # Shared root utilities
+│   ├── callbacks.py        # LRFinder, LRLogger, get_lr_scheduler, get_early_stopping
+│   ├── wandb_utils.py      # W&B integration helpers
+│   └── gpu_utils.py        # Dynamic VRAM-based batch/epoch scaling
 ├── v1/                     # 1st Edition (2019) - 22 notebooks
 │   ├── notebooks/          # Jupyter notebooks (.ipynb)
-│   ├── scripts/            # Data download scripts
+│   ├── data_download_scripts/  # Data download scripts
 │   ├── data/               # Downloaded datasets (gitignored)
 │   ├── run/                # Model outputs (gitignored)
 │   └── src/
@@ -61,9 +84,6 @@ Generative_Deep_Learning/
 │   ├── 11_music/           # Music generation
 │   ├── src/                # V2 models & utilities
 │   └── utils.py            # Shared V2 utilities
-├── utils/                  # Shared root utilities
-│   ├── callbacks.py        # LRFinder, LRLogger, get_lr_scheduler, get_early_stopping
-│   └── wandb_utils.py      # W&B integration helpers
 ├── docker/                 # Docker configuration (CPU/GPU)
 ├── documentation/          # Setup guides
 │   ├── UV_SETUP.md
@@ -200,13 +220,14 @@ import keras.ops as ops
 
 ### ✅ Always
 
-- Always use intermediate Python scripts to edit `.ipynb` files (JSON format)
+- Always use intermediate Python scripts in `scripts/` folder to edit `.ipynb` files (JSON format)
 - Always verify imports work with: `uv run python -c "import keras; print(keras.__version__)"`
 - Always run v1 notebooks from `v1/notebooks/` directory
 - Always run v2 notebooks from their chapter subdirectory
 - Always check GPU availability before long training runs
 - Always backup trained models before retraining
 - Always enable GPU memory growth in the first cell of notebooks
+- Always restart the kernel at the end of notebooks to fully release GPU memory (the only guaranteed way)
 
 ---
 

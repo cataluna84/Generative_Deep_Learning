@@ -86,11 +86,21 @@ tf.keras.backend.clear_session()
 
 ## Batch Size Recommendations
 
-| VRAM | Simple Datasets (MNIST/CIFAR) | Face Datasets (CelebA) |
-|------|------------------------------|------------------------|
-| 6GB | 512 | 128-256 |
-| 8GB | 1024 | 256-384 |
-| 12GB+ | 2048+ | 512+ |
+> [!TIP]
+> **Dynamic Configuration (Recommended)**:
+> Use `utils/gpu_utils.py` to automatically calculate the optimal batch size for your GPU VRAM:
+> ```python
+> from utils.gpu_utils import get_optimal_batch_size, get_gpu_vram_gb
+> BATCH_SIZE = get_optimal_batch_size('gan', vram_gb=get_gpu_vram_gb())
+> ```
+
+### Reference Values (for manual override)
+
+| VRAM | Simple Datasets (MNIST/CIFAR) | Face Datasets (CelebA) | GANs (Camel) |
+|------|------------------------------|------------------------|--------------|
+| 6GB | 512 | 128-256 | 128 |
+| 8GB | 1024 | 256-384 | 256 |
+| 12GB+ | 2048+ | 512+ | 512+ |
 
 ---
 

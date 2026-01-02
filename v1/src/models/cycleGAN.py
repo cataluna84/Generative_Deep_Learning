@@ -335,8 +335,8 @@ class CycleGAN():
                 if batch_i % sample_interval == 0:
                     #Fixed: Memory leak
                     self.sample_images(data_loader, batch_i, run_folder, test_A_file, test_B_file)
-                    self.combined.save_weights(os.path.join(run_folder, 'weights/weights-%d.h5' % (self.epoch)))
-                    self.combined.save_weights(os.path.join(run_folder, 'weights/weights.h5'))
+                    self.combined.save_weights(os.path.join(run_folder, 'weights/weights-%d.weights.h5' % (self.epoch)))
+                    self.combined.save_weights(os.path.join(run_folder, 'weights/weights.weights.h5'))
                     self.save_model(run_folder)
 
             self.epoch += 1
@@ -425,12 +425,12 @@ class CycleGAN():
         self.plot_model(folder)
 
     def save_model(self, run_folder):
-
-        self.combined.save(os.path.join(run_folder, 'model.h5'))
-        self.d_A.save(os.path.join(run_folder, 'd_A.h5'))
-        self.d_B.save(os.path.join(run_folder, 'd_B.h5'))
-        self.g_BA.save(os.path.join(run_folder, 'g_BA.h5'))
-        self.g_AB.save(os.path.join(run_folder, 'g_AB.h5'))
+        # Use native Keras format (.keras) instead of legacy HDF5 (.h5)
+        self.combined.save(os.path.join(run_folder, 'model.keras'))
+        self.d_A.save(os.path.join(run_folder, 'd_A.keras'))
+        self.d_B.save(os.path.join(run_folder, 'd_B.keras'))
+        self.g_BA.save(os.path.join(run_folder, 'g_BA.keras'))
+        self.g_AB.save(os.path.join(run_folder, 'g_AB.keras'))
 
         pkl.dump(self, open(os.path.join(run_folder, "obj.pkl"), "wb"))
 

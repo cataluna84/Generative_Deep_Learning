@@ -188,7 +188,7 @@ def load_fashion_mnist(input_rows, input_cols, path='./data/fashion/fashion-mnis
 
 
 def load_safari(folder):
-    mypath = os.path.join("./data", folder)
+    mypath = os.path.join("../data", folder)
     txt_name_list = []
     for (dirpath, dirnames, filenames) in walk(mypath):
         for f in filenames:

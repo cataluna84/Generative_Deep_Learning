@@ -290,8 +290,8 @@ class WGAN():
             # If at save interval => save generated image samples
             if epoch % print_every_n_batches == 0:
                 self.sample_images(run_folder)
-                self.model.save_weights(os.path.join(run_folder, 'weights/weights-%d.h5' % (epoch)))
-                self.model.save_weights(os.path.join(run_folder, 'weights/weights.h5'))
+                self.model.save_weights(os.path.join(run_folder, 'weights/weights-%d.weights.h5' % (epoch)))
+                self.model.save_weights(os.path.join(run_folder, 'weights/weights.weights.h5'))
                 self.save_model(run_folder)
             
             self.epoch+=1
@@ -353,10 +353,11 @@ class WGAN():
             self.plot_model(folder)
 
     def save_model(self, run_folder):
-        self.model.save(os.path.join(run_folder, 'model.h5'))
-        self.critic.save(os.path.join(run_folder, 'critic.h5'))
-        self.generator.save(os.path.join(run_folder, 'generator.h5'))
-        pickle.dump(self, open( os.path.join(run_folder, "obj.pkl"), "wb" ))
+        # Use native Keras format (.keras) instead of legacy HDF5 (.h5)
+        self.model.save(os.path.join(run_folder, 'model.keras'))
+        self.critic.save(os.path.join(run_folder, 'critic.keras'))
+        self.generator.save(os.path.join(run_folder, 'generator.keras'))
+        pickle.dump(self, open(os.path.join(run_folder, "obj.pkl"), "wb"))
 
     def load_weights(self, filepath):
         self.model.load_weights(filepath)

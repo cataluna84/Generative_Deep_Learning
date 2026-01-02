@@ -72,13 +72,20 @@ wandb.finish()
 The project provides helper functions in `utils/wandb_utils.py`:
 
 ```python
-import sys; sys.path.insert(0, '..')
+import sys
+# sys.path.insert(0, '..')    # For v1/src modules
+sys.path.insert(0, '../..')   # For project root utils/
+
 from utils.wandb_utils import init_wandb, get_metrics_logger, log_images
 
 # Initialize with helper
 run = init_wandb(
     name="vae-faces-v1",
-    config={"learning_rate": "auto", "batch_size": 384}
+    config={
+        "learning_rate": "auto", 
+        "batch_size": 384,
+        "gpu_vram": 8
+    }
 )
 
 # Get metrics logger callback

@@ -397,15 +397,15 @@ class MuseGAN():
             if epoch % print_every_n_batches == 0:
                 self.sample_images(run_folder)
 
-                self.generator.save_weights(os.path.join(run_folder, 'weights/weights-g.h5'))
+                self.generator.save_weights(os.path.join(run_folder, 'weights/weights-g.weights.h5'))
 
-                self.critic.save_weights(os.path.join(run_folder, 'weights/weights-c.h5'))
+                self.critic.save_weights(os.path.join(run_folder, 'weights/weights-c.weights.h5'))
 
                 self.save_model(run_folder)
 
             if epoch % 500 == 0:
-                self.generator.save_weights(os.path.join(run_folder, 'weights/weights-g-%d.h5' % (epoch)))
-                self.critic.save_weights(os.path.join(run_folder, 'weights/weights-c-%d.h5' % (epoch)))
+                self.generator.save_weights(os.path.join(run_folder, 'weights/weights-g-%d.weights.h5' % (epoch)))
+                self.critic.save_weights(os.path.join(run_folder, 'weights/weights-c-%d.weights.h5' % (epoch)))
 
             self.epoch += 1
 
@@ -497,19 +497,20 @@ class MuseGAN():
         self.plot_model(folder)
 
     def save_model(self, run_folder):
-        self.model.save(os.path.join(run_folder, 'model.h5'))
-        self.critic.save(os.path.join(run_folder, 'critic.h5'))
-        self.generator.save(os.path.join(run_folder, 'generator.h5'))
+        # Use native Keras format (.keras) instead of legacy HDF5 (.h5)
+        self.model.save(os.path.join(run_folder, 'model.keras'))
+        self.critic.save(os.path.join(run_folder, 'critic.keras'))
+        self.generator.save(os.path.join(run_folder, 'generator.keras'))
 
     def load_weights(self, run_folder, epoch=None):
 
         if epoch is None:
 
-            self.generator.load_weights(os.path.join(run_folder, 'weights', 'weights-g.h5'))
-            self.critic.load_weights(os.path.join(run_folder, 'weights', 'weights-c.h5'))
+            self.generator.load_weights(os.path.join(run_folder, 'weights', 'weights-g.weights.h5'))
+            self.critic.load_weights(os.path.join(run_folder, 'weights', 'weights-c.weights.h5'))
         else:
-            self.generator.load_weights(os.path.join(run_folder, 'weights', 'weights-g-{}.h5'.format(epoch)))
-            self.critic.load_weights(os.path.join(run_folder, 'weights', 'weights-c-{}.h5'.format(epoch)))
+            self.generator.load_weights(os.path.join(run_folder, 'weights', 'weights-g-{}.weights.h5'.format(epoch)))
+            self.critic.load_weights(os.path.join(run_folder, 'weights', 'weights-c-{}.weights.h5'.format(epoch)))
 
     def draw_bar(self, data, score_num, bar, part):
         plt.imshow(data[score_num, bar, :, :, part].transpose([1, 0]), origin='lower', cmap='Greys', vmin=-1, vmax=1)

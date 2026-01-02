@@ -19,6 +19,7 @@ __pycache__/
 
 #Autoencoder Output
 v1/run/vae
+v1/run/gan
 v1/data/img_align_celeba
 
 # Distribution / packaging

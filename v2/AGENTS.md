@@ -17,6 +17,18 @@ This directory contains notebooks from the **2nd Edition (2023)** of "Generative
 - Transformers & Attention
 - Music Generation
 
+## Coding Standards
+
+Ensure all notebooks and source code in `v2/` meet these requirements:
+
+1.  **PEP 8 compliant code formatting**
+2.  **Comprehensive documentation and comments**
+3.  **Dynamic batch size and epoch scaling**
+4.  **W&B integration for experiment tracking**
+5.  **Step decay LR scheduler**
+6.  **Enhanced training visualizations**
+7.  **Kernel restart cell for GPU memory release**
+
 ---
 
 ## Directory Structure
@@ -107,6 +119,13 @@ Follow the **[Notebook Standardization Guide](../documentation/NOTEBOOK_STANDARD
 
 6. **Cleanup**: `wandb.finish()`
 
+7. **Kernel Restart**: Add a final cell to release GPU memory:
+   ```python
+   import IPython
+   print("Restarting kernel to release GPU memory...")
+   IPython.Application.instance().kernel.do_shutdown(restart=True)
+   ```
+
 ---
 
 ## Import Patterns
@@ -148,7 +167,7 @@ from src.models.vae import VAE
 
 ## Editing Notebooks
 
-Since `.ipynb` files are JSON, use intermediate Python scripts:
+Since `.ipynb` files are JSON, use intermediate Python scripts in `scripts/` folder:
 
 ```python
 import json
@@ -173,7 +192,7 @@ with open('notebook.ipynb', 'w') as f:
 1. Run cells sequentially with `Shift+Enter`
 2. When error occurs, read full traceback
 3. Check variable shapes with `print(x.shape)`
-4. For programmatic fixes, use an intermediate Python script
+4. For programmatic fixes, use an intermediate Python script in `scripts/` folder
 5. Re-run from the fixed cell
 
 ---

@@ -4,6 +4,20 @@ This comprehensive guide covers notebook development workflow, debugging, and th
 
 ---
 
+## Standardization Requirements
+
+Every notebook and source file must meet the following criteria:
+
+- [x] **PEP 8 compliant code formatting** (consistent style, clean imports)
+- [x] **Comprehensive documentation and comments** (docstrings for all classes/functions)
+- [x] **Dynamic batch size and epoch scaling** (using `utils.gpu_utils`)
+- [x] **W&B integration** for experiment tracking (metrics, images, configs)
+- [x] **Step decay LR scheduler** (for stable training)
+- [x] **Enhanced training visualizations** (loss, accuracy, LR history)
+- [x] **Kernel restart cell** for GPU memory release (final cell)
+
+---
+
 ## Part 1: Running & Debugging Notebooks
 
 ### Start Jupyter Lab
@@ -29,7 +43,8 @@ Run cells sequentially with `Shift+Enter`. When an error occurs:
 | `Adam(lr=0.001)` | `Adam(learning_rate=0.001)` |
 | `keras.layers.experimental.*` | `keras.layers.*` |
 | `model.predict_on_batch()` | `model(x, training=False)` |
-| `.h5` weights | `.weights.h5` or `.keras` |
+| `.h5` weights | `.weights.h5` (weights only) |
+| `.h5` model save | `.keras` (full model) |
 | `tf.keras.*` | `keras.*` |
 
 ### GPU Memory Issues
@@ -60,6 +75,8 @@ Transform hardcoded, static notebooks into flexible, tracked, and optimized expe
 
 Move hardcoded parameters to the top of the notebook (after imports).
 
+#### Static Configuration (Simple)
+
 ```python
 # ═══════════════════════════════════════════════════════════════════════════════
 # GLOBAL CONFIGURATION
@@ -73,6 +90,34 @@ MODEL_TYPE = 'vae'
 # Model-specific
 INPUT_DIM = (128, 128, 3)
 Z_DIM = 200
+```
+
+#### Dynamic Configuration (Recommended)
+
+Use `utils/gpu_utils.py` to automatically scale batch size and epochs based on GPU VRAM:
+
+```python
+from utils.gpu_utils import (
+    get_optimal_batch_size,
+    calculate_adjusted_epochs,
+    get_gpu_vram_gb,
+    print_training_config
+)
+
+# Reference values (original notebook settings)
+REFERENCE_BATCH_SIZE = 256
+REFERENCE_EPOCHS = 6000
+
+# Auto-detect GPU VRAM or override manually
+TARGET_VRAM_GB = None  # Set to 6, 8, 12, etc. to override
+GPU_VRAM_GB = TARGET_VRAM_GB if TARGET_VRAM_GB else get_gpu_vram_gb()
+
+# Calculate optimal settings
+BATCH_SIZE = get_optimal_batch_size('gan', vram_gb=GPU_VRAM_GB)
+EPOCHS = calculate_adjusted_epochs(REFERENCE_EPOCHS, REFERENCE_BATCH_SIZE, BATCH_SIZE)
+
+# Print configuration
+print_training_config('gan', BATCH_SIZE, EPOCHS, REFERENCE_BATCH_SIZE, REFERENCE_EPOCHS, GPU_VRAM_GB)
 ```
 
 > [!TIP]
@@ -230,6 +275,30 @@ print(f"{'='*50}")
 wandb.finish()
 ```
 
+### Step 7: Restart Kernel to Release GPU Memory
+
+> [!IMPORTANT]
+> TensorFlow/CUDA does not fully release GPU memory within a running Python process.
+> The **only guaranteed way** to release all GPU memory is to restart the kernel.
+
+Add this as the **final cell** of your notebook:
+
+```python
+# ═══════════════════════════════════════════════════════════════════════════════
+# CLEANUP: Restart kernel to fully release GPU memory
+# ═══════════════════════════════════════════════════════════════════════════════
+# TensorFlow/CUDA does not release GPU memory within a running Python process.
+# Restarting the kernel is the only guaranteed way to free all GPU resources.
+
+import IPython
+print("Restarting kernel to release GPU memory...")
+IPython.Application.instance().kernel.do_shutdown(restart=True)
+```
+
+> [!NOTE]
+> This cell should only be run after all work is complete and saved.
+> The kernel restart will clear all variables and outputs.
+
 ---
 
 ## Checklist
@@ -240,7 +309,64 @@ wandb.finish()
 - [ ] LRFinder on cloned model
 - [ ] Training with callbacks (`WandbMetricsLogger`, `get_lr_scheduler`, `get_early_stopping`, `LRLogger`)
 - [ ] Post-training history plot with `semilogy()` for LR
+- [ ] Model saved with `.keras` extension (not legacy `.h5`)
+- [ ] Weights saved with `.weights.h5` extension
 - [ ] `wandb.finish()` at end
+- [ ] Kernel restart cell to release GPU memory (final cell)
+
+---
+
+## GAN-Specific Standardization
+
+GANs use custom training loops, so standard Keras callbacks don't apply.
+
+### GAN Training Configuration
+
+```python
+# LR Scheduler (Step Decay)
+LR_DECAY_FACTOR = 0.5  # Halve LR at each decay point
+LR_DECAY_EPOCHS = EPOCHS // 4  # Decay 4 times during training
+
+# Training call with W&B and LR scheduling
+gan.train(
+    x_train,
+    batch_size=BATCH_SIZE,
+    epochs=EPOCHS,
+    run_folder=RUN_FOLDER,
+    print_every_n_batches=50,
+    use_wandb=True,
+    lr_decay_factor=LR_DECAY_FACTOR,
+    lr_decay_epochs=LR_DECAY_EPOCHS
+)
+```
+
+### GAN Training Plots
+
+After training, plot loss, accuracy, and LR history:
+
+```python
+fig, axes = plt.subplots(1, 3, figsize=(18, 5))
+
+# Loss plot
+axes[0].plot([x[0] for x in gan.d_losses], label='D')
+axes[0].plot([x[0] for x in gan.g_losses], label='G')
+axes[0].set_title('Loss')
+axes[0].legend()
+
+# Accuracy plot
+axes[1].plot([x[3] for x in gan.d_losses], label='D')
+axes[1].set_title('Accuracy')
+axes[1].legend()
+
+# LR plot (log scale)
+axes[2].semilogy(gan.d_lr_history, label='D LR')
+axes[2].semilogy(gan.g_lr_history, label='G LR')
+axes[2].set_title('Learning Rate')
+axes[2].legend()
+
+plt.tight_layout()
+plt.savefig(os.path.join(RUN_FOLDER, 'training_summary.png'))
+```
 
 ---
 
@@ -259,12 +385,13 @@ import keras.backend as K
 
 # Path setup for utilities
 import sys
-sys.path.insert(0, '..')  # For v1/notebooks
-# sys.path.insert(0, '../..')  # For v2 subdirectories
+sys.path.insert(0, '..')      # For v1/src modules
+sys.path.insert(0, '../..')   # For project root utils/
 
-# Project utilities
+# Project utilities (from project root)
 from utils.wandb_utils import init_wandb
 from utils.callbacks import LRFinder, get_lr_scheduler, get_early_stopping, LRLogger
+from utils.gpu_utils import get_optimal_batch_size, calculate_adjusted_epochs, get_gpu_vram_gb
 
 # W&B
 import wandb
@@ -272,6 +399,20 @@ from wandb.integration.keras import WandbMetricsLogger
 
 # Visualization
 import matplotlib.pyplot as plt
+```
+
+---
+
+## Notebook Update Scripts
+
+Scripts for updating notebooks are located in `scripts/` at the project root:
+
+```bash
+# Update a specific cell in a notebook
+uv run python scripts/update_notebook_cell.py
+
+# Generate standardized GAN notebook from scratch
+uv run python scripts/standardize_gan_notebook.py
 ```
 
 ---

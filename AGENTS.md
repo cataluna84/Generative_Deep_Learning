@@ -205,9 +205,12 @@ import keras.ops as ops
    - GANs and VAEs can consume significant GPU memory
    - Reduce batch size if encountering OOM errors
    - Use `tf.keras.backend.clear_session()` between experiments
-   - **Batch Size Optimization**: For 8GB VRAM:
-     - Simple datasets (MNIST/CIFAR): `BATCH_SIZE = 1024`
-     - Face datasets (CelebA): `BATCH_SIZE = 256-384`
+   - **Batch Size Profiles** (use `get_optimal_batch_size(profile)`):
+     - `'cifar10'`: CIFAR-10/MNIST classification → 2048 @ 8GB VRAM
+     - `'gan'`: Standard GANs (28x28) → 1024 @ 8GB VRAM
+     - `'wgan'`: WGAN/WGANGP → 512 @ 8GB VRAM
+     - `'vae'`: VAE (128x128 RGB) → 256 @ 8GB VRAM
+     - `'ae'`: Autoencoders → 384 @ 8GB VRAM
 
 ### 🚫 Do NOT
 

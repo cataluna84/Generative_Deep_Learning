@@ -135,13 +135,17 @@ When working on notebooks in this directory, follow the **[Notebook Standardizat
 
 ---
 
-## Batch Size Optimization
+## Batch Size Profiles
 
-| Dataset | 8GB VRAM | 6GB VRAM |
-|---------|----------|----------|
-| MNIST/CIFAR | 1024 | 512 |
-| CelebA (128×128) | 256-384 | 128-256 |
-| Camel drawings | 512-1024 | 256-512 |
+Use `get_optimal_batch_size(profile, vram_gb=GPU_VRAM_GB)` to auto-calculate:
+
+| Profile | Use Case | 8GB | 6GB |
+|---------|----------|-----|-----|
+| `'cifar10'` | CIFAR-10/MNIST (32x32) | 2048 | 1024 |
+| `'gan'` | GANs (28x28 grayscale) | 1024 | 512 |
+| `'wgan'` | WGAN/WGANGP | 512 | 256 |
+| `'vae'` | VAE (128x128 RGB) | 256 | 128 |
+| `'ae'` | Autoencoders | 384 | 256 |
 
 ---
 

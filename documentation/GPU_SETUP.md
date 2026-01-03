@@ -91,16 +91,29 @@ tf.keras.backend.clear_session()
 > Use `utils/gpu_utils.py` to automatically calculate the optimal batch size for your GPU VRAM:
 > ```python
 > from utils.gpu_utils import get_optimal_batch_size, get_gpu_vram_gb
-> BATCH_SIZE = get_optimal_batch_size('gan', vram_gb=get_gpu_vram_gb())
+> BATCH_SIZE = get_optimal_batch_size('cifar10', vram_gb=get_gpu_vram_gb())
 > ```
 
-### Reference Values (for manual override)
+### Available Model Profiles
 
-| VRAM | Simple Datasets (MNIST/CIFAR) | Face Datasets (CelebA) | GANs (Camel) |
-|------|------------------------------|------------------------|--------------|
-| 6GB | 512 | 128-256 | 128 |
-| 8GB | 1024 | 256-384 | 256 |
-| 12GB+ | 2048+ | 512+ | 512+ |
+| Profile | Use Case | Notebooks |
+|---------|----------|-----------|
+| `'cifar10'` | CIFAR-10/MNIST classification (32x32 RGB) | `02_01`, `02_02`, `02_03` |
+| `'gan'` | Standard GANs (28x28 grayscale) | `04_01_gan_camel` |
+| `'wgan'` | WGAN/WGANGP with gradient penalty | `04_02`, `04_03` |
+| `'vae'` | VAE with 128x128 RGB images | `03_05_vae_faces` |
+| `'ae'` | Simple Autoencoders | `03_01_autoencoder` |
+
+### Reference Values by Profile and VRAM
+
+| VRAM | `cifar10` | `gan` | `wgan` | `vae` | `ae` |
+|------|-----------|-------|--------|-------|------|
+| 4GB  | 512       | 256   | 128    | 64    | 128  |
+| 6GB  | 1024      | 512   | 256    | 128   | 256  |
+| 8GB  | 2048      | 1024  | 512    | 256   | 384  |
+| 12GB | 4096      | 2048  | 1024   | 384   | 512  |
+| 16GB | 8192      | 4096  | 2048   | 512   | 768  |
+| 24GB | 16384     | 8192  | 4096   | 768   | 1024 |
 
 ---
 

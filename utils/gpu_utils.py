@@ -79,7 +79,8 @@ BATCH_SIZE_CONFIG = {
         24: 768,
     },
     
-    # Autoencoder models (similar to VAE but simpler)
+    # Autoencoder for CelebA faces (128x128 RGB, ~800K params)
+    # Higher memory usage due to larger images
     'ae': {
         4: 128,
         6: 256,
@@ -87,6 +88,30 @@ BATCH_SIZE_CONFIG = {
         12: 512,
         16: 768,
         24: 1024,
+    },
+    
+    # Autoencoder for MNIST/digits (28x28 grayscale, ~200K params)
+    # Lightweight - can use larger batch sizes similar to GANs
+    # Suitable for: 03_01_autoencoder, 03_03_vae_digits
+    'ae_digits': {
+        4: 512,     # 4GB VRAM
+        6: 1024,    # 6GB VRAM
+        8: 2048,    # 8GB VRAM (targets ~6-7GB usage)
+        12: 4096,   # 12GB VRAM
+        16: 8192,   # 16GB VRAM
+        24: 16384,  # 24GB VRAM
+    },
+    
+    # CIFAR-10 classification models (32x32 RGB, ~620K params for MLP)
+    # Lightweight models can use large batch sizes similar to GANs
+    # Suitable for: 02_01_deep_neural_network, 02_02_convolutions, 02_03_conv_neural_network
+    'cifar10': {
+        4: 512,     # 4GB VRAM (GTX 1050 Ti)
+        6: 1024,    # 6GB VRAM (GTX 1060, RTX 2060)
+        8: 2048,    # 8GB VRAM (RTX 2070, RTX 3070)
+        12: 4096,   # 12GB VRAM (RTX 3080, RTX 4070)
+        16: 8192,   # 16GB VRAM (RTX 4080)
+        24: 16384,  # 24GB VRAM (RTX 3090, RTX 4090)
     },
 }
 

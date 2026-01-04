@@ -97,33 +97,13 @@ def get_gpu_vram_gb() -> int:
         except (RuntimeError, AttributeError, KeyError):
             pass
         
-        # Fallback: detect from device name (rough estimation)
-        gpu_name = gpu.name.lower() if hasattr(gpu, 'name') else ''
-        
-        # Common GPU VRAM mappings based on device names
-        if '3090' in gpu_name or '4090' in gpu_name:
-            return 24
-        elif '3080' in gpu_name or '4080' in gpu_name:
-            return 12
-        elif '3070' in gpu_name or '4070' in gpu_name or '2080' in gpu_name:
-            return 8
-        elif '2070' in gpu_name or '3060' in gpu_name:
-            return 8
-        elif '2060' in gpu_name or '1080' in gpu_name:
-            return 8
-        elif '1070' in gpu_name or '3050' in gpu_name:
-            return 8
-        elif '1060' in gpu_name:
-            return 6
-        elif '1050' in gpu_name:
-            return 4
-        else:
-            # Default to 8GB for unknown GPUs
-            return 8
+        return 8
             
     except Exception as e:
         print(f"WARNING: Error detecting GPU VRAM: {e}. Using default of 8GB.")
         return 8
+            
+
 
 
 def get_gpu_memory_info() -> Dict[str, float]:

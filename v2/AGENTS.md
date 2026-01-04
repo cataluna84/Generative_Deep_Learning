@@ -25,9 +25,10 @@ Ensure all notebooks and source code in `v2/` meet these requirements:
 2.  **Comprehensive documentation and comments**
 3.  **Dynamic batch size and epoch scaling**
 4.  **W&B integration for experiment tracking**
-5.  **Step decay LR scheduler**
-6.  **Enhanced training visualizations**
-7.  **Kernel restart cell for GPU memory release**
+5.  **LRFinder for optimal learning rate**
+6.  **Step decay LR scheduler**
+7.  **Enhanced training visualizations**
+8.  **Kernel restart cell for GPU memory release**
 
 ---
 
@@ -212,23 +213,25 @@ When updating old code:
 
 ---
 
-## Batch Size Profiles
+## Dynamic Batch Size
 
-Use `get_optimal_batch_size(profile, vram_gb=GPU_VRAM_GB)` to auto-calculate:
+Use binary search + OOM detection to find optimal batch size:
 
-| Profile | Use Case | 8GB | 6GB |
-|---------|----------|-----|-----|
-| `'cifar10'` | CIFAR-10/MNIST (32x32) | 2048 | 1024 |
-| `'gan'` | GANs (28x28 grayscale) | 1024 | 512 |
-| `'wgan'` | WGAN/WGANGP | 512 | 256 |
-| `'vae'` | VAE (128x128 RGB) | 256 | 128 |
-| `'ae'` | Autoencoders | 384 | 256 |
+```python
+from utils.gpu_utils import find_optimal_batch_size, calculate_adjusted_epochs
+
+# After building model
+BATCH_SIZE = find_optimal_batch_size(model=my_model, input_shape=(28, 28, 1))
+EPOCHS = calculate_adjusted_epochs(200, 32, BATCH_SIZE)
+```
+
+See **[../documentation/DYNAMIC_BATCH_SIZE.md](../documentation/DYNAMIC_BATCH_SIZE.md)** for full API.
 
 ---
 
 ## VAE LRFinder
 
-For VAEs with custom loss:
+The VAE's `sampling` function is registered with `@keras.saving.register_keras_serializable`, enabling model cloning. Define a reconstruction loss:
 
 ```python
 import keras.backend as K
@@ -264,6 +267,7 @@ wandb.finish()
 
 - **[../documentation/NOTEBOOK_STANDARDIZATION.md](../documentation/NOTEBOOK_STANDARDIZATION.md)** - Complete workflow
 - **[../documentation/CALLBACKS.md](../documentation/CALLBACKS.md)** - Callback reference
+- **[../documentation/DYNAMIC_BATCH_SIZE.md](../documentation/DYNAMIC_BATCH_SIZE.md)** - Dynamic batch sizing
 - **[../documentation/WANDB_SETUP.md](../documentation/WANDB_SETUP.md)** - W&B setup
 - **[../documentation/GPU_SETUP.md](../documentation/GPU_SETUP.md)** - GPU configuration
 - **[../documentation/UV_SETUP.md](../documentation/UV_SETUP.md)** - Package manager

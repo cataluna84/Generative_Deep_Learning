@@ -10,6 +10,7 @@ All code and notebooks in this repository adhere to the following standards:
 - [x] **Comprehensive documentation and comments**
 - [x] **Dynamic batch size and epoch scaling**
 - [x] **W&B integration for experiment tracking**
+- [x] **LRFinder for optimal learning rate**
 - [x] **Step decay LR scheduler**
 - [x] **Enhanced training visualizations**
 - [x] **Kernel restart cell for GPU memory release**
@@ -26,7 +27,7 @@ Generative_Deep_Learning/
 ├── utils/                  # Shared root utilities
 │   ├── callbacks.py        # LRFinder, LRLogger, get_lr_scheduler, get_early_stopping
 │   ├── wandb_utils.py      # W&B integration helpers
-│   └── gpu_utils.py        # Dynamic VRAM-based batch/epoch scaling
+│   └── gpu_utils.py        # Dynamic batch size finder (binary search + OOM detection)
 ├── v1/                     # 1st Edition (2019) - 22 notebooks
 │   ├── notebooks/          # Jupyter notebooks (.ipynb)
 │   │   ├── 02_*            # Deep Learning basics (MLP, CNN)
@@ -256,6 +257,34 @@ Standardized workflow for all notebooks:
 
 See [NOTEBOOK_STANDARDIZATION.md](documentation/NOTEBOOK_STANDARDIZATION.md).
 
+### Dynamic Batch Size
+
+Automatically find optimal batch size using binary search with OOM detection:
+
+```python
+from utils.gpu_utils import find_optimal_batch_size, calculate_adjusted_epochs
+
+# After building model
+BATCH_SIZE = find_optimal_batch_size(
+    model=my_model,
+    input_shape=(28, 28, 1),
+)
+EPOCHS = calculate_adjusted_epochs(200, 32, BATCH_SIZE)
+```
+
+Output:
+```
+DYNAMIC BATCH SIZE FINDER
+Model Parameters: 1,234,567
+Estimated Model Memory: 19.8 MB
+  batch_size=   64 ✓
+  batch_size=  512 ✓
+  batch_size= 1024 ✗ OOM
+✓ Optimal batch size: 460
+```
+
+See [DYNAMIC_BATCH_SIZE.md](documentation/DYNAMIC_BATCH_SIZE.md).
+
 ---
 
 ## V1 Models
@@ -293,6 +322,7 @@ See [NOTEBOOK_STANDARDIZATION.md](documentation/NOTEBOOK_STANDARDIZATION.md).
 | [WANDB_SETUP.md](documentation/WANDB_SETUP.md) | Weights & Biases integration |
 | [CALLBACKS.md](documentation/CALLBACKS.md) | LRFinder, schedulers, early stopping |
 | [CELEBA_SETUP.md](documentation/CELEBA_SETUP.md) | CelebA dataset download & setup |
+| [DYNAMIC_BATCH_SIZE.md](documentation/DYNAMIC_BATCH_SIZE.md) | Dynamic batch sizing with OOM detection |
 | [NOTEBOOK_STANDARDIZATION.md](documentation/NOTEBOOK_STANDARDIZATION.md) | Notebook development workflow |
 
 ---

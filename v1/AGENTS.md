@@ -22,9 +22,10 @@ Ensure all notebooks and source code in `v1/` meet these requirements:
 2.  **Comprehensive documentation and comments**
 3.  **Dynamic batch size and epoch scaling**
 4.  **W&B integration for experiment tracking**
-5.  **Step decay LR scheduler**
-6.  **Enhanced training visualizations**
-7.  **Kernel restart cell for GPU memory release**
+5.  **LRFinder for optimal learning rate**
+6.  **Step decay LR scheduler**
+7.  **Enhanced training visualizations**
+8.  **Kernel restart cell for GPU memory release**
 
 ---
 
@@ -83,11 +84,13 @@ When working on notebooks in this directory, follow the **[Notebook Standardizat
    ```
 
 2. **Global Config**: Move `BATCH_SIZE`, `EPOCHS`, etc. to top-level variables.
-   - **Recommended**: Use `utils/gpu_utils.py` for dynamic batch size scaling based on VRAM.
+   - **Recommended**: Use dynamic batch finder (after model build):
    ```python
-   from utils.gpu_utils import get_optimal_batch_size, calculate_adjusted_epochs, get_gpu_vram_gb
-   GPU_VRAM_GB = get_gpu_vram_gb()
-   BATCH_SIZE = get_optimal_batch_size('gan', vram_gb=GPU_VRAM_GB)
+   from utils.gpu_utils import find_optimal_batch_size, calculate_adjusted_epochs
+   
+   # After building model
+   BATCH_SIZE = find_optimal_batch_size(model=my_model, input_shape=(28, 28, 1))
+   EPOCHS = calculate_adjusted_epochs(200, 32, BATCH_SIZE)
    ```
 
 3. **W&B**: Initialize with global config and `learning_rate="auto"`:
@@ -135,23 +138,25 @@ When working on notebooks in this directory, follow the **[Notebook Standardizat
 
 ---
 
-## Batch Size Profiles
+## Dynamic Batch Size
 
-Use `get_optimal_batch_size(profile, vram_gb=GPU_VRAM_GB)` to auto-calculate:
+Use binary search + OOM detection to find optimal batch size:
 
-| Profile | Use Case | 8GB | 6GB |
-|---------|----------|-----|-----|
-| `'cifar10'` | CIFAR-10/MNIST (32x32) | 2048 | 1024 |
-| `'gan'` | GANs (28x28 grayscale) | 1024 | 512 |
-| `'wgan'` | WGAN/WGANGP | 512 | 256 |
-| `'vae'` | VAE (128x128 RGB) | 256 | 128 |
-| `'ae'` | Autoencoders | 384 | 256 |
+```python
+from utils.gpu_utils import find_optimal_batch_size, calculate_adjusted_epochs
+
+# After building model
+BATCH_SIZE = find_optimal_batch_size(model=my_model, input_shape=(28, 28, 1))
+EPOCHS = calculate_adjusted_epochs(200, 32, BATCH_SIZE)
+```
+
+See **[../documentation/DYNAMIC_BATCH_SIZE.md](../documentation/DYNAMIC_BATCH_SIZE.md)** for full API.
 
 ---
 
 ## VAE LRFinder
 
-When running LRFinder on VAEs, define a custom reconstruction loss:
+The VAE's `sampling` function is registered with `@keras.saving.register_keras_serializable`, enabling LRFinder. Define a reconstruction loss:
 
 ```python
 import keras.backend as K
@@ -245,5 +250,6 @@ model.load_weights("run/ae/weights.weights.h5")
 
 - **[../documentation/NOTEBOOK_STANDARDIZATION.md](../documentation/NOTEBOOK_STANDARDIZATION.md)** - Complete workflow
 - **[../documentation/CALLBACKS.md](../documentation/CALLBACKS.md)** - Callback reference
+- **[../documentation/DYNAMIC_BATCH_SIZE.md](../documentation/DYNAMIC_BATCH_SIZE.md)** - Dynamic batch sizing
 - **[../documentation/CELEBA_SETUP.md](../documentation/CELEBA_SETUP.md)** - CelebA setup
 - **[../documentation/GPU_SETUP.md](../documentation/GPU_SETUP.md)** - GPU configuration

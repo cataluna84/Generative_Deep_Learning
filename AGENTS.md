@@ -46,9 +46,10 @@ Ensure all deliverables meet these requirements:
 2.  **Comprehensive documentation and comments**
 3.  **Dynamic batch size and epoch scaling**
 4.  **W&B integration for experiment tracking**
-5.  **Step decay LR scheduler**
-6.  **Enhanced training visualizations**
-7.  **Kernel restart cell for GPU memory release**
+5.  **LRFinder for optimal learning rate**
+6.  **Step decay LR scheduler**
+7.  **Enhanced training visualizations**
+8.  **Kernel restart cell for GPU memory release**
 
 ---
 
@@ -62,7 +63,7 @@ Generative_Deep_Learning/
 ├── utils/                  # Shared root utilities
 │   ├── callbacks.py        # LRFinder, LRLogger, get_lr_scheduler, get_early_stopping
 │   ├── wandb_utils.py      # W&B integration helpers
-│   └── gpu_utils.py        # Dynamic VRAM-based batch/epoch scaling
+│   └── gpu_utils.py        # Dynamic batch size finder (binary search + OOM detection)
 ├── v1/                     # 1st Edition (2019) - 22 notebooks
 │   ├── notebooks/          # Jupyter notebooks (.ipynb)
 │   ├── data_download_scripts/  # Data download scripts
@@ -203,14 +204,9 @@ import keras.ops as ops
 
 4. **Memory Management**
    - GANs and VAEs can consume significant GPU memory
-   - Reduce batch size if encountering OOM errors
    - Use `tf.keras.backend.clear_session()` between experiments
-   - **Batch Size Profiles** (use `get_optimal_batch_size(profile)`):
-     - `'cifar10'`: CIFAR-10/MNIST classification → 2048 @ 8GB VRAM
-     - `'gan'`: Standard GANs (28x28) → 1024 @ 8GB VRAM
-     - `'wgan'`: WGAN/WGANGP → 512 @ 8GB VRAM
-     - `'vae'`: VAE (128x128 RGB) → 256 @ 8GB VRAM
-     - `'ae'`: Autoencoders → 384 @ 8GB VRAM
+   - **Dynamic Batch Size** (recommended): Use `find_optimal_batch_size(model, input_shape)` for automatic OOM-safe batch sizing
+   - See [DYNAMIC_BATCH_SIZE.md](documentation/DYNAMIC_BATCH_SIZE.md) for full API
 
 ### 🚫 Do NOT
 
@@ -353,6 +349,7 @@ model.fit(x, y, epochs=200, callbacks=callbacks)
 | [WANDB_SETUP.md](documentation/WANDB_SETUP.md) | Weights & Biases integration |
 | [CALLBACKS.md](documentation/CALLBACKS.md) | LRFinder, schedulers, early stopping |
 | [CELEBA_SETUP.md](documentation/CELEBA_SETUP.md) | CelebA dataset download & setup |
+| [DYNAMIC_BATCH_SIZE.md](documentation/DYNAMIC_BATCH_SIZE.md) | Dynamic batch sizing with OOM detection |
 | [NOTEBOOK_STANDARDIZATION.md](documentation/NOTEBOOK_STANDARDIZATION.md) | Notebook development workflow |
 
 ---

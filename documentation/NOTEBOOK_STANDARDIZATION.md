@@ -12,6 +12,7 @@ Every notebook and source file must meet the following criteria:
 - [x] **Comprehensive documentation and comments** (docstrings for all classes/functions)
 - [x] **Dynamic batch size and epoch scaling** (using `utils.gpu_utils`)
 - [x] **W&B integration** for experiment tracking (metrics, images, configs)
+- [x] **LRFinder for optimal learning rate** (run on cloned model before training)
 - [x] **Step decay LR scheduler** (for stable training)
 - [x] **Enhanced training visualizations** (loss, accuracy, LR history)
 - [x] **Kernel restart cell** for GPU memory release (final cell)
@@ -94,37 +95,30 @@ Z_DIM = 200
 
 #### Dynamic Configuration (Recommended)
 
-Use `utils/gpu_utils.py` to automatically scale batch size and epochs based on GPU VRAM:
+Use the dynamic batch size finder to automatically determine optimal batch size:
 
 ```python
-from utils.gpu_utils import (
-    get_optimal_batch_size,
-    calculate_adjusted_epochs,
-    get_gpu_vram_gb,
-    print_training_config
-)
+from utils.gpu_utils import find_optimal_batch_size, calculate_adjusted_epochs
 
 # Reference values (original notebook settings)
-REFERENCE_BATCH_SIZE = 256
-REFERENCE_EPOCHS = 6000
+REFERENCE_BATCH_SIZE = 32
+REFERENCE_EPOCHS = 200
 
-# Auto-detect GPU VRAM or override manually
-TARGET_VRAM_GB = None  # Set to 6, 8, 12, etc. to override
-GPU_VRAM_GB = TARGET_VRAM_GB if TARGET_VRAM_GB else get_gpu_vram_gb()
-
-# Calculate optimal settings
-BATCH_SIZE = get_optimal_batch_size('gan', vram_gb=GPU_VRAM_GB)
+# NOTE: Call AFTER building model so it can test memory usage
+# (Move this cell after model build)
+BATCH_SIZE = find_optimal_batch_size(
+    model=my_model,
+    input_shape=(28, 28, 1),
+)
 EPOCHS = calculate_adjusted_epochs(REFERENCE_EPOCHS, REFERENCE_BATCH_SIZE, BATCH_SIZE)
 
-# Print configuration
-print_training_config('gan', BATCH_SIZE, EPOCHS, REFERENCE_BATCH_SIZE, REFERENCE_EPOCHS, GPU_VRAM_GB)
+print(f"Batch size: {BATCH_SIZE} (reference: {REFERENCE_BATCH_SIZE})")
+print(f"Epochs: {EPOCHS} (reference: {REFERENCE_EPOCHS})")
 ```
 
 > [!TIP]
-> **Batch Size Optimization**: For 8GB VRAM GPUs:
-> - Simple datasets (MNIST/CIFAR): `BATCH_SIZE = 1024`
-> - Face datasets (CelebA): `BATCH_SIZE = 256-384`
-> - Use `nvidia-smi -l 1` to monitor memory usage.
+> See **[DYNAMIC_BATCH_SIZE.md](DYNAMIC_BATCH_SIZE.md)** for full API documentation.
+> The finder uses binary search + OOM detection to find the maximum safe batch size.
 
 ### Step 2: W&B Initialization
 
@@ -179,7 +173,7 @@ print(f"Optimal learning rate: {optimal_lr:.2e}")
 
 #### VAE LRFinder
 
-For VAEs with custom loss, define reconstruction loss:
+The VAE's `sampling` function is registered with `@keras.saving.register_keras_serializable`, enabling model cloning. Define a reconstruction loss:
 
 ```python
 import keras.backend as K

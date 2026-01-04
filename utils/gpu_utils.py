@@ -2,129 +2,58 @@
 GPU Utilities Module for Dynamic Training Configuration.
 
 This module provides utilities for optimizing deep learning training based on
-available GPU VRAM. It automatically detects GPU memory and calculates optimal
-batch sizes and epoch counts to fully utilize hardware while maintaining
-equivalent training volume.
+available GPU VRAM. It automatically detects GPU memory and dynamically
+calculates optimal batch sizes using binary search with OOM detection.
 
 Key Features:
     - Automatic GPU VRAM detection using TensorFlow
-    - Model-specific batch size recommendations (GAN, VAE, AE, etc.)
-    - Dynamic epoch scaling to maintain total training updates
-    - Manual override options for custom configurations
+    - Dynamic batch size finder using binary search + OOM detection
+    - Parameter logging to console and W&B
+    - Epoch scaling to maintain total training updates
 
 Example Usage:
-    >>> from utils.gpu_utils import get_optimal_batch_size, calculate_adjusted_epochs
-    >>> 
-    >>> # Auto-detect VRAM and get optimal batch size for GAN
-    >>> batch_size = get_optimal_batch_size('gan')  # Returns 1024 for 8GB GPU
-    >>> 
+    >>> from utils.gpu_utils import find_optimal_batch_size, get_gpu_vram_gb
+    >>>
+    >>> # Build your model first
+    >>> model = create_my_model()
+    >>>
+    >>> # Find optimal batch size dynamically
+    >>> batch_size = find_optimal_batch_size(
+    ...     model=model,
+    ...     input_shape=(28, 28, 1),
+    ... )
+    >>>
     >>> # Scale epochs to maintain equivalent training updates
     >>> epochs = calculate_adjusted_epochs(
-    ...     reference_epochs=6000, 
-    ...     reference_batch=256, 
+    ...     reference_epochs=200,
+    ...     reference_batch=32,
     ...     actual_batch=batch_size
-    ... )  # Returns 1500 for batch_size=1024
+    ... )
 
 References:
-    - documentation/GPU_SETUP.md: Batch size recommendations table
+    - documentation/GPU_SETUP.md: GPU configuration guide
     - documentation/NOTEBOOK_STANDARDIZATION.md: Dynamic training workflow
 
-Author: Antigravity AI Assistant
 Created: 2026-01-02
+Updated: 2026-01-04 (Added dynamic batch finder, removed static tables)
 """
 
 import tensorflow as tf
-from typing import Optional
+import numpy as np
+import gc
+from typing import Optional, Tuple, Dict, Any
+
+# Optional W&B import
+try:
+    import wandb
+    WANDB_AVAILABLE = True
+except ImportError:
+    WANDB_AVAILABLE = False
 
 
 # =============================================================================
-# BATCH SIZE CONFIGURATIONS
+# GPU DETECTION
 # =============================================================================
-# These values are tuned based on experimentation with different GPU memory
-# sizes. The goal is to maximize GPU utilization while avoiding OOM errors.
-#
-# Format: MODEL_TYPE -> {VRAM_GB: BATCH_SIZE}
-# =============================================================================
-BATCH_SIZE_CONFIG = {
-    # GAN models (28x28 grayscale, ~1.5M params)
-    # Relatively lightweight, can use larger batch sizes
-    'gan': {
-        4: 256,     # 4GB VRAM (GTX 1050 Ti)
-        6: 512,     # 6GB VRAM (GTX 1060, RTX 2060)
-        8: 1024,    # 8GB VRAM (RTX 2070, RTX 3070)
-        12: 2048,   # 12GB VRAM (RTX 3080, RTX 4070)
-        16: 4096,   # 16GB VRAM (RTX 4080)
-        24: 8192,   # 24GB VRAM (RTX 3090, RTX 4090)
-    },
-    
-    # WGAN/WGANGP models (similar to GAN but with gradient penalty)
-    # Slightly more memory overhead due to interpolated samples
-    'wgan': {
-        4: 128,
-        6: 256,
-        8: 512,
-        12: 1024,
-        16: 2048,
-        24: 4096,
-    },
-    
-    # VAE models (128x128 RGB, ~800K params for encoder+decoder)
-    # Higher memory usage due to larger images
-    'vae': {
-        4: 64,
-        6: 128,
-        8: 256,
-        12: 384,
-        16: 512,
-        24: 768,
-    },
-    
-    # Autoencoder for CelebA faces (128x128 RGB, ~800K params)
-    # Higher memory usage due to larger images
-    'ae': {
-        4: 128,
-        6: 256,
-        8: 384,
-        12: 512,
-        16: 768,
-        24: 1024,
-    },
-    
-    # Autoencoder for MNIST/digits (28x28 grayscale, ~200K params)
-    # Lightweight - can use larger batch sizes similar to GANs
-    # Suitable for: 03_01_autoencoder, 03_03_vae_digits
-    'ae_digits': {
-        4: 512,     # 4GB VRAM
-        6: 1024,    # 6GB VRAM
-        8: 2048,    # 8GB VRAM (targets ~6-7GB usage)
-        12: 4096,   # 12GB VRAM
-        16: 8192,   # 16GB VRAM
-        24: 16384,  # 24GB VRAM
-    },
-    
-    # CIFAR-10 classification models (32x32 RGB, ~620K params for MLP)
-    # Lightweight models can use large batch sizes similar to GANs
-    # Suitable for: 02_01_deep_neural_network, 02_02_convolutions, 02_03_conv_neural_network
-    'cifar10': {
-        4: 512,     # 4GB VRAM (GTX 1050 Ti)
-        6: 1024,    # 6GB VRAM (GTX 1060, RTX 2060)
-        8: 2048,    # 8GB VRAM (RTX 2070, RTX 3070)
-        12: 4096,   # 12GB VRAM (RTX 3080, RTX 4070)
-        16: 8192,   # 16GB VRAM (RTX 4080)
-        24: 16384,  # 24GB VRAM (RTX 3090, RTX 4090)
-    },
-}
-
-# Default configuration for unknown model types
-DEFAULT_BATCH_SIZES = {
-    4: 64,
-    6: 128,
-    8: 256,
-    12: 384,
-    16: 512,
-    24: 768,
-}
-
 
 def get_gpu_vram_gb() -> int:
     """
@@ -154,18 +83,18 @@ def get_gpu_vram_gb() -> int:
             return 8
         
         # Get memory info for the first GPU
-        # TensorFlow doesn't directly expose VRAM, so we use a workaround
-        # by checking the device attributes or using nvidia-smi parsing
         gpu = gpus[0]
         
         # Try to get memory limit if set
         try:
-            memory_info = tf.config.experimental.get_memory_info(gpu.name.replace('/physical_device:', ''))
+            # Build device name for memory info query
+            device_name = gpu.name.replace('/physical_device:', '')
+            memory_info = tf.config.experimental.get_memory_info(device_name)
             if 'total' in memory_info:
                 vram_bytes = memory_info['total']
                 vram_gb = int(vram_bytes / (1024 ** 3))
                 return max(vram_gb, 4)  # Minimum 4GB
-        except (RuntimeError, AttributeError):
+        except (RuntimeError, AttributeError, KeyError):
             pass
         
         # Fallback: detect from device name (rough estimation)
@@ -197,63 +126,178 @@ def get_gpu_vram_gb() -> int:
         return 8
 
 
-def get_optimal_batch_size(
-    model_type: str,
-    vram_gb: Optional[int] = None
-) -> int:
+def get_gpu_memory_info() -> Dict[str, float]:
     """
-    Get the optimal batch size for a given model type and GPU VRAM.
-    
-    This function returns a pre-configured batch size that maximizes GPU
-    utilization while avoiding out-of-memory errors. The batch sizes are
-    determined through empirical testing on various GPU configurations.
-    
-    Args:
-        model_type: Type of model being trained. Supported values:
-            - 'gan': Standard GAN (28x28 grayscale images)
-            - 'wgan': Wasserstein GAN variants
-            - 'vae': Variational Autoencoder (128x128 RGB)
-            - 'ae': Simple Autoencoder
-            
-        vram_gb: GPU VRAM in gigabytes. If None, auto-detects using
-            get_gpu_vram_gb(). Set this manually to override auto-detection.
+    Get current GPU memory usage.
     
     Returns:
-        int: Recommended batch size for the configuration.
+        Dictionary with memory info in MB:
+            - current_mb: Currently allocated memory
+            - peak_mb: Peak memory usage
+    """
+    try:
+        info = tf.config.experimental.get_memory_info('GPU:0')
+        return {
+            'current_mb': info.get('current', 0) / (1024 ** 2),
+            'peak_mb': info.get('peak', 0) / (1024 ** 2),
+        }
+    except Exception:
+        return {'current_mb': 0, 'peak_mb': 0}
+
+
+# =============================================================================
+# DYNAMIC BATCH SIZE FINDER
+# =============================================================================
+
+def find_optimal_batch_size(
+    model: tf.keras.Model,
+    input_shape: Tuple[int, ...],
+    min_batch_size: int = 2,
+    max_batch_size: int = 4096,
+    safety_factor: float = 0.9,
+    verbose: bool = True,
+    log_to_wandb: bool = True,
+) -> int:
+    """
+    Find the optimal batch size using binary search with OOM detection.
+    
+    This function tests progressively larger batch sizes until an OOM error
+    occurs, then uses binary search to find the largest batch size that fits.
+    
+    Args:
+        model: Compiled Keras model to test. Must be callable.
+        input_shape: Shape of a single input sample (H, W, C) without batch dim.
+        min_batch_size: Minimum batch size to test. Default: 2.
+        max_batch_size: Maximum batch size to test. Default: 4096.
+        safety_factor: Fraction of max batch to return (0.9 = 90%). Default: 0.9.
+        verbose: Print progress messages. Default: True.
+        log_to_wandb: Log results to W&B if available. Default: True.
+        
+    Returns:
+        int: Optimal batch size that fits in GPU memory.
         
     Example:
-        >>> # Auto-detect VRAM
-        >>> batch = get_optimal_batch_size('gan')
-        >>> print(f"Optimal batch size: {batch}")
-        Optimal batch size: 1024
-        
-        >>> # Manual override for 6GB GPU
-        >>> batch = get_optimal_batch_size('gan', vram_gb=6)
-        >>> print(f"Optimal batch size: {batch}")
-        Optimal batch size: 512
+        >>> model = create_vae_model()
+        >>> optimal_batch = find_optimal_batch_size(model, (28, 28, 1))
+        ════════════════════════════════════════════════════════════════
+        DYNAMIC BATCH SIZE FINDER
+        ════════════════════════════════════════════════════════════════
+        Model Parameters: 1,234,567
+        Estimated Model Memory: 19.8 MB (weights + optimizer + gradients)
+        Input Shape: (28, 28, 1)
+        ────────────────────────────────────────────────────────────────
+        Testing batch sizes...
+          batch_size=    2 ✓
+          ...
+          batch_size= 2048 ✗ OOM
+        ────────────────────────────────────────────────────────────────
+        ✓ Optimal batch size: 1382
+        ════════════════════════════════════════════════════════════════
     """
-    # Auto-detect VRAM if not specified
-    if vram_gb is None:
-        vram_gb = get_gpu_vram_gb()
+    # =========================================================================
+    # Step 1: Log model information
+    # =========================================================================
+    model_info = _get_model_info(model, input_shape)
     
-    # Get configuration for model type, fallback to default
-    model_type = model_type.lower()
-    config = BATCH_SIZE_CONFIG.get(model_type, DEFAULT_BATCH_SIZES)
+    if verbose:
+        print("═" * 64)
+        print("DYNAMIC BATCH SIZE FINDER")
+        print("═" * 64)
+        print(f"Model Parameters: {model_info['params']:,}")
+        print(f"Estimated Model Memory: {model_info['memory_mb']:.1f} MB "
+              "(weights + optimizer + gradients)")
+        print(f"Input Shape: {input_shape}")
+        print("─" * 64)
+        print("Testing batch sizes...")
     
-    # Find the best matching VRAM tier
-    # If exact match not found, use the largest tier <= available VRAM
-    available_tiers = sorted([tier for tier in config.keys() if tier <= vram_gb], reverse=True)
+    # Log to W&B if available
+    if log_to_wandb and WANDB_AVAILABLE and wandb.run is not None:
+        wandb.log({
+            "batch_finder/model_params": model_info['params'],
+            "batch_finder/model_memory_mb": model_info['memory_mb'],
+            "batch_finder/input_shape": str(input_shape),
+        })
     
-    if not available_tiers:
-        # VRAM is less than minimum tier, use smallest available
-        min_tier = min(config.keys())
-        print(f"WARNING: GPU VRAM ({vram_gb}GB) is below minimum tested ({min_tier}GB). "
-              f"Using batch size for {min_tier}GB.")
-        return config[min_tier]
+    # =========================================================================
+    # Step 2: Exponential growth to find upper bound
+    # =========================================================================
+    last_success = min_batch_size
+    first_oom = None
+    batch_size = min_batch_size
     
-    selected_tier = available_tiers[0]
-    return config[selected_tier]
+    while batch_size <= max_batch_size:
+        success = _test_batch_size(model, input_shape, batch_size, verbose)
+        
+        if success:
+            last_success = batch_size
+            batch_size *= 2
+        else:
+            first_oom = batch_size
+            break
+    
+    # If no OOM occurred, return max tested with safety factor
+    if first_oom is None:
+        result = int(last_success * safety_factor)
+        result = _round_to_multiple(result, 32)
+        
+        if verbose:
+            print("─" * 64)
+            print(f"✓ No OOM detected. Using: {result}")
+            print("═" * 64)
+        
+        _log_result_to_wandb(result, model_info, log_to_wandb)
+        return result
+    
+    # =========================================================================
+    # Step 3: Binary search between last_success and first_oom
+    # =========================================================================
+    if verbose:
+        print(f"Binary search: {last_success} - {first_oom}")
+    
+    low, high = last_success, first_oom
+    
+    while high - low > low * 0.1:  # Stop when within 10%
+        mid = (low + high) // 2
+        
+        # Round to nice numbers for efficiency
+        if mid > 64:
+            mid = (mid // 32) * 32  # Round to multiple of 32
+        
+        if mid <= low or mid >= high:
+            break
+            
+        success = _test_batch_size(model, input_shape, mid, verbose)
+        
+        if success:
+            low = mid
+        else:
+            high = mid
+    
+    # =========================================================================
+    # Step 4: Apply safety factor and return
+    # =========================================================================
+    raw_result = low
+    result = int(raw_result * safety_factor)
+    result = max(min_batch_size, result)
+    
+    # Round down to multiple of 32 for GPU efficiency
+    if result > 64:
+        result = (result // 32) * 32
+    
+    if verbose:
+        print("─" * 64)
+        print(f"✓ Optimal batch size: {result} "
+              f"({raw_result} × {safety_factor} safety)")
+        print("═" * 64)
+    
+    _log_result_to_wandb(result, model_info, log_to_wandb)
+    
+    return result
 
+
+# =============================================================================
+# EPOCH SCALING
+# =============================================================================
 
 def calculate_adjusted_epochs(
     reference_epochs: int,
@@ -270,32 +314,20 @@ def calculate_adjusted_epochs(
     The formula is:
         adjusted_epochs = reference_epochs × (reference_batch / actual_batch)
     
-    This preserves the relationship:
-        total_updates = (dataset_size / batch_size) × epochs
-    
     Args:
-        reference_epochs: Original epoch count (e.g., 6000).
-        reference_batch: Original batch size (e.g., 256).
+        reference_epochs: Original epoch count (e.g., 200).
+        reference_batch: Original batch size (e.g., 32).
         actual_batch: New batch size being used (e.g., 1024).
         
     Returns:
         int: Adjusted epoch count (minimum 100).
         
     Example:
-        >>> # Original: 6000 epochs with batch 256
-        >>> # New: batch 1024 (4x larger)
-        >>> adjusted = calculate_adjusted_epochs(6000, 256, 1024)
+        >>> # Original: 200 epochs with batch 32
+        >>> # New: batch 1024 (32x larger)
+        >>> adjusted = calculate_adjusted_epochs(200, 32, 1024)
         >>> print(f"Adjusted epochs: {adjusted}")
-        Adjusted epochs: 1500
-        
-    Note:
-        - Larger batches generally provide more stable gradients
-        - The minimum returned value is 100 epochs
-        - For very large batch sizes, consider fewer epochs with higher LR
-        
-    See Also:
-        - documentation/GPU_SETUP.md for batch size recommendations
-        - The epoch scaling preserves TOTAL UPDATES, not total samples seen
+        Adjusted epochs: 100
     """
     if actual_batch <= 0:
         raise ValueError("actual_batch must be positive")
@@ -308,14 +340,21 @@ def calculate_adjusted_epochs(
     # Calculate adjusted epochs
     adjusted = int(reference_epochs * scale_factor)
     
-    # Enforce minimum of 100 epochs
+    # Enforce minimum of 100 epochs to ensure sufficient training iterations
+    # for model convergence. With large batch sizes, the number of gradient
+    # updates per epoch decreases significantly, so a higher minimum ensures
+    # the model sees enough training iterations to learn effectively.
     return max(adjusted, 100)
 
 
+# =============================================================================
+# CONFIGURATION PRINTING
+# =============================================================================
+
 def print_training_config(
-    model_type: str,
     batch_size: int,
     epochs: int,
+    model_params: int = None,
     reference_batch: int = None,
     reference_epochs: int = None,
     vram_gb: int = None
@@ -323,36 +362,26 @@ def print_training_config(
     """
     Print a formatted summary of the training configuration.
     
-    This helper function displays the current training parameters in a
-    clear, readable format for verification before starting training.
-    
     Args:
-        model_type: Type of model being trained.
         batch_size: Batch size being used.
         epochs: Number of epochs to train.
+        model_params: Number of model parameters (optional).
         reference_batch: Original batch size for comparison (optional).
         reference_epochs: Original epoch count for comparison (optional).
         vram_gb: GPU VRAM in GB (optional, for display).
         
     Example:
-        >>> print_training_config('gan', 1024, 1500, 256, 6000, 8)
-        ═══════════════════════════════════════════════════════════════════
-        TRAINING CONFIGURATION
-        ═══════════════════════════════════════════════════════════════════
-        Model Type:     GAN
-        GPU VRAM:       8 GB
-        Batch Size:     1024 (reference: 256)
-        Epochs:         1500 (reference: 6000)
-        Scale Factor:   0.25x epochs
-        ═══════════════════════════════════════════════════════════════════
+        >>> print_training_config(1024, 50, model_params=1234567, vram_gb=8)
     """
-    print("═" * 68)
+    print("═" * 64)
     print("TRAINING CONFIGURATION")
-    print("═" * 68)
-    print(f"Model Type:     {model_type.upper()}")
+    print("═" * 64)
     
     if vram_gb:
         print(f"GPU VRAM:       {vram_gb} GB")
+    
+    if model_params:
+        print(f"Model Params:   {model_params:,}")
     
     if reference_batch:
         print(f"Batch Size:     {batch_size} (reference: {reference_batch})")
@@ -366,31 +395,149 @@ def print_training_config(
     else:
         print(f"Epochs:         {epochs}")
     
-    print("═" * 68)
+    print("═" * 64)
+
+
+# =============================================================================
+# HELPER FUNCTIONS (PRIVATE)
+# =============================================================================
+
+def _get_model_info(model: tf.keras.Model, input_shape: Tuple[int, ...]) -> Dict[str, Any]:
+    """Extract model information for logging."""
+    total_params = model.count_params()
+    trainable_params = sum(
+        tf.keras.backend.count_params(w) for w in model.trainable_weights
+    )
+    
+    # Memory estimation:
+    # - Weights: params × 4 bytes (float32)
+    # - Gradients: params × 4 bytes
+    # - Adam optimizer: params × 8 bytes (m and v)
+    # Total: params × 16 bytes
+    bytes_per_param = 16
+    memory_bytes = total_params * bytes_per_param
+    memory_mb = memory_bytes / (1024 ** 2)
+    
+    return {
+        'params': total_params,
+        'trainable_params': trainable_params,
+        'memory_mb': memory_mb,
+        'input_shape': input_shape,
+    }
+
+
+def _test_batch_size(
+    model: tf.keras.Model,
+    input_shape: Tuple[int, ...],
+    batch_size: int,
+    verbose: bool = True
+) -> bool:
+    """Test if a batch size fits in GPU memory."""
+    try:
+        # Create test batch
+        test_input = tf.random.normal([batch_size] + list(input_shape))
+        
+        # Run forward + backward pass (simulates training)
+        with tf.GradientTape() as tape:
+            output = model(test_input, training=True)
+            
+            # Handle different output types
+            if isinstance(output, (list, tuple)):
+                loss = tf.reduce_mean(tf.cast(output[0], tf.float32))
+            else:
+                loss = tf.reduce_mean(tf.cast(output, tf.float32))
+        
+        # Compute gradients
+        if model.trainable_variables:
+            _ = tape.gradient(loss, model.trainable_variables)
+        
+        # Clean up
+        del test_input, output, loss
+        gc.collect()
+        
+        if verbose:
+            print(f"  batch_size={batch_size:5d} ✓")
+        return True
+        
+    except tf.errors.ResourceExhaustedError:
+        if verbose:
+            print(f"  batch_size={batch_size:5d} ✗ OOM")
+        gc.collect()
+        return False
+        
+    except Exception as e:
+        if verbose:
+            print(f"  batch_size={batch_size:5d} ✗ Error: {type(e).__name__}")
+        gc.collect()
+        return False
+
+
+def _round_to_multiple(n: int, multiple: int) -> int:
+    """Round down to nearest multiple for GPU efficiency."""
+    if n < multiple:
+        return n
+    return (n // multiple) * multiple
+
+
+def _log_result_to_wandb(
+    batch_size: int,
+    model_info: Dict[str, Any],
+    log_to_wandb: bool
+) -> None:
+    """Log final results to W&B if available."""
+    if log_to_wandb and WANDB_AVAILABLE and wandb.run is not None:
+        wandb.log({
+            "batch_finder/optimal_batch_size": batch_size,
+        })
+        # Update config
+        wandb.config.update({
+            "batch_size": batch_size,
+            "batch_size_source": "dynamic_finder",
+            "model_params": model_info['params'],
+        }, allow_val_change=True)
 
 
 # =============================================================================
 # MODULE SELF-TEST
 # =============================================================================
+
 if __name__ == "__main__":
-    # Run a quick self-test when executed directly
-    print("GPU Utils Module Self-Test")
+    print("GPU Utils Module - Self Test")
     print("-" * 40)
     
     # Test VRAM detection
     vram = get_gpu_vram_gb()
     print(f"Detected VRAM: {vram}GB")
     
-    # Test batch size calculation for different models
-    for model in ['gan', 'vae', 'ae']:
-        batch = get_optimal_batch_size(model, vram_gb=vram)
-        print(f"{model.upper()} optimal batch size: {batch}")
+    # Create a SMALL test model (avoid Flatten which creates huge param count)
+    print("\nCreating small test model...")
+    model = tf.keras.Sequential([
+        tf.keras.layers.Input(shape=(28, 28, 1)),
+        tf.keras.layers.Conv2D(16, 3, activation='relu'),
+        tf.keras.layers.MaxPooling2D(2),
+        tf.keras.layers.Conv2D(32, 3, activation='relu'),
+        tf.keras.layers.GlobalAveragePooling2D(),  # Much smaller than Flatten
+        tf.keras.layers.Dense(10),
+    ])
+    print(f"Model params: {model.count_params():,}")
+    
+    # Test the dynamic batch finder with reduced max for quick testing
+    print("\nTesting dynamic batch finder...")
+    optimal = find_optimal_batch_size(
+        model=model,
+        input_shape=(28, 28, 1),
+        min_batch_size=64,
+        max_batch_size=512,  # Reduced for quick test
+        verbose=True,
+        log_to_wandb=False,
+    )
     
     # Test epoch scaling
-    ref_epochs, ref_batch = 6000, 256
-    for test_batch in [256, 512, 1024, 2048]:
-        adjusted = calculate_adjusted_epochs(ref_epochs, ref_batch, test_batch)
-        print(f"Batch {test_batch}: {adjusted} epochs")
+    print("\nTesting epoch scaling...")
+    for test_batch in [32, 64, 128, 256, 512, 1024]:
+        adjusted = calculate_adjusted_epochs(200, 32, test_batch)
+        print(f"  Batch {test_batch}: {adjusted} epochs")
     
     print("-" * 40)
     print("Self-test complete!")
+

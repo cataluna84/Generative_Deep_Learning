@@ -52,7 +52,7 @@ lr = lr_finder.get_optimal_lr(method='min_loss_10') # Conservative
 
 ### VAE LRFinder
 
-For VAEs with custom loss, define a reconstruction loss before running LRFinder:
+The VAE's `sampling` function is registered with `@keras.saving.register_keras_serializable`, enabling model cloning for LRFinder. Define a reconstruction loss before running:
 
 ```python
 import keras.backend as K

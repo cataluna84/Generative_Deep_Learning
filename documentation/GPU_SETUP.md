@@ -84,36 +84,49 @@ tf.keras.backend.clear_session()
 
 ---
 
-## Batch Size Recommendations
+## Batch Size Configuration
+
+### Dynamic Batch Size (Recommended)
+
+Use the dynamic batch size finder to automatically determine optimal batch size:
+
+```python
+from utils.gpu_utils import find_optimal_batch_size, calculate_adjusted_epochs
+
+# Build your model first
+model = create_my_model()
+
+# Find optimal batch size using binary search + OOM detection
+BATCH_SIZE = find_optimal_batch_size(
+    model=model,
+    input_shape=(28, 28, 1),
+)
+
+# Scale epochs to maintain training volume
+EPOCHS = calculate_adjusted_epochs(200, 32, BATCH_SIZE)
+```
 
 > [!TIP]
-> **Dynamic Configuration (Recommended)**:
-> Use `utils/gpu_utils.py` to automatically calculate the optimal batch size for your GPU VRAM:
-> ```python
-> from utils.gpu_utils import get_optimal_batch_size, get_gpu_vram_gb
-> BATCH_SIZE = get_optimal_batch_size('cifar10', vram_gb=get_gpu_vram_gb())
-> ```
+> See **[DYNAMIC_BATCH_SIZE.md](DYNAMIC_BATCH_SIZE.md)** for full API documentation.
 
-### Available Model Profiles
+### How It Works
 
-| Profile | Use Case | Notebooks |
-|---------|----------|-----------|
-| `'cifar10'` | CIFAR-10/MNIST classification (32x32 RGB) | `02_01`, `02_02`, `02_03` |
-| `'gan'` | Standard GANs (28x28 grayscale) | `04_01_gan_camel` |
-| `'wgan'` | WGAN/WGANGP with gradient penalty | `04_02`, `04_03` |
-| `'vae'` | VAE with 128x128 RGB images | `03_05_vae_faces` |
-| `'ae'` | Simple Autoencoders | `03_01_autoencoder` |
+1. Tests progressively larger batch sizes
+2. Detects OOM errors automatically
+3. Uses binary search to find maximum safe size
+4. Logs model parameters to console and W&B
 
-### Reference Values by Profile and VRAM
+### Example Output
 
-| VRAM | `cifar10` | `gan` | `wgan` | `vae` | `ae` |
-|------|-----------|-------|--------|-------|------|
-| 4GB  | 512       | 256   | 128    | 64    | 128  |
-| 6GB  | 1024      | 512   | 256    | 128   | 256  |
-| 8GB  | 2048      | 1024  | 512    | 256   | 384  |
-| 12GB | 4096      | 2048  | 1024   | 384   | 512  |
-| 16GB | 8192      | 4096  | 2048   | 512   | 768  |
-| 24GB | 16384     | 8192  | 4096   | 768   | 1024 |
+```
+DYNAMIC BATCH SIZE FINDER
+Model Parameters: 1,234,567
+Estimated Model Memory: 19.8 MB
+  batch_size=   64 ✓
+  batch_size=  512 ✓
+  batch_size= 1024 ✗ OOM
+✓ Optimal batch size: 460
+```
 
 ---
 
@@ -161,7 +174,9 @@ If GPU still not detected in WSL, ensure you have the latest NVIDIA Windows driv
 
 ## Related Documentation
 
+- **[DYNAMIC_BATCH_SIZE.md](DYNAMIC_BATCH_SIZE.md)** - Dynamic batch size finder
 - **[UV_SETUP.md](UV_SETUP.md)** - Package manager setup
 - **[WANDB_SETUP.md](WANDB_SETUP.md)** - Experiment tracking
 - **[CALLBACKS.md](CALLBACKS.md)** - Training optimization callbacks
 - **[NOTEBOOK_STANDARDIZATION.md](NOTEBOOK_STANDARDIZATION.md)** - Notebook workflow
+

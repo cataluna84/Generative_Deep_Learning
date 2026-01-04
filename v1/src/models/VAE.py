@@ -97,6 +97,38 @@ from src.utils.callbacks import CustomCallback, step_decay_schedule
 
 
 # =============================================================================
+# SERIALIZABLE SAMPLING FUNCTION
+# =============================================================================
+import keras
+
+@keras.saving.register_keras_serializable(package="vae", name="sampling")
+def sampling(args):
+    """
+    Sample from the latent distribution using reparameterization.
+    
+    The reparameterization trick:
+        z = μ + σ × ε, where ε ~ N(0, 1)
+    
+    This allows gradients to flow through the sampling operation.
+    This function is registered with Keras serialization to enable
+    model cloning (required for LRFinder).
+    
+    Args:
+        args: Tuple of (mu, log_var) tensors.
+            mu: Mean of the latent distribution.
+            log_var: Log variance of the latent distribution.
+    
+    Returns:
+        Sampled latent vector z with same shape as mu.
+    """
+    mu, log_var = args
+    # Sample ε from standard normal
+    epsilon = K.random_normal(shape=K.shape(mu), mean=0.0, stddev=1.0)
+    # Compute z = μ + σ × ε (note: σ = exp(log_var / 2))
+    return mu + K.exp(log_var / 2) * epsilon
+
+
+# =============================================================================
 # KL LOSS LAYER
 # =============================================================================
 class KLLossLayer(Layer):
@@ -372,28 +404,8 @@ class VariationalAutoencoder:
         # =====================================================================
         # REPARAMETERIZATION TRICK
         # =====================================================================
-        def sampling(args):
-            """
-            Sample from the latent distribution using reparameterization.
-            
-            The reparameterization trick:
-                z = μ + σ × ε, where ε ~ N(0, 1)
-            
-            This allows gradients to flow through the sampling operation.
-            
-            Args:
-                args: Tuple of (mu, log_var) tensors.
-            
-            Returns:
-                Sampled latent vector z.
-            """
-            mu, log_var = args
-            # Sample ε from standard normal
-            epsilon = K.random_normal(shape=K.shape(mu), mean=0.0, stddev=1.0)
-            # Compute z = μ + σ × ε (note: σ = exp(log_var / 2))
-            return mu + K.exp(log_var / 2) * epsilon
-        
-        # Create sampling layer
+        # Use the module-level serializable sampling function
+        # This enables model cloning for LRFinder
         encoder_output = Lambda(sampling, name='encoder_output')(
             [self.mu, self.log_var]
         )

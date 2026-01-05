@@ -355,7 +355,46 @@ class LRLogger(Callback):
     """
     def on_epoch_end(self, epoch, logs=None):
         lr = float(self.model.optimizer.learning_rate)
-        print(f"Epoch {epoch+1}: Learning Rate is {lr:.2e}")
+        print(f" Epoch {epoch+1}: Learning Rate is {lr:.2e}")
         if wandb.run is not None:
             wandb.log({"learning_rate": lr}, commit=False)
 
+
+class GPUMemoryLogger(Callback):
+    """
+    Callback that logs GPU memory usage at the end of each epoch.
+    
+    Tracks current and peak GPU memory consumption and logs to both
+    console and W&B. Stores history for post-training visualization.
+    
+    Attributes:
+        memory_history (list): List of (current_mb, peak_mb) tuples per epoch.
+        
+    Example:
+        >>> gpu_logger = GPUMemoryLogger()
+        >>> model.fit(x, y, callbacks=[gpu_logger])
+        >>> # After training, access memory history:
+        >>> current = [m[0] for m in gpu_logger.memory_history]
+        >>> peak = [m[1] for m in gpu_logger.memory_history]
+    """
+    
+    def __init__(self):
+        super().__init__()
+        self.memory_history = []  # Store (current_mb, peak_mb) per epoch
+    
+    def on_epoch_end(self, epoch, logs=None):
+        try:
+            info = tf.config.experimental.get_memory_info('GPU:0')
+            current_mb = info.get('current', 0) / (1024 ** 2)
+            peak_mb = info.get('peak', 0) / (1024 ** 2)
+            self.memory_history.append((current_mb, peak_mb))
+            print(f"  GPU Memory: {current_mb:.0f} MB (peak: {peak_mb:.0f} MB)")
+            
+            # Log to W&B
+            if wandb.run is not None:
+                wandb.log({
+                    "gpu_memory_mb": current_mb,
+                    "gpu_memory_peak_mb": peak_mb
+                }, commit=False)
+        except Exception:
+            self.memory_history.append((0, 0))

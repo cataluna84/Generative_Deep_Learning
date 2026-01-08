@@ -348,3 +348,68 @@ def log_quality_metrics(epoch: int, quality: dict) -> None:
     print(f"✓ Quality metrics logged at epoch {epoch}")
 
 
+def define_wgan_charts() -> None:
+    """
+    Define custom W&B chart panels for WGAN training visualization.
+
+    Creates organized chart groups for:
+        - Training losses (D, G, Wasserstein distance)
+        - Model weights (mean and std for critic/generator)
+        - Stability indicators (D/G ratio, clip ratio, variance)
+        - Quality metrics (FID, Inception Score)
+
+    Call this after wandb.init() but before training starts.
+
+    Example:
+        >>> wandb.init(project="wgan", name="run_001")
+        >>> define_wgan_charts()
+        >>> gan.train(...)
+
+    Note:
+        W&B automatically creates line charts for logged metrics.
+        This function uses wandb.define_metric() to organize panels.
+    """
+    try:
+        # =====================================================================
+        # Chart Groupings via wandb.define_metric()
+        # =====================================================================
+        # Define x-axis for all metrics (step = epoch)
+        wandb.define_metric("*", step_metric="epoch")
+
+        # -----------------------------------------------------------------
+        # Loss Metrics Group
+        # -----------------------------------------------------------------
+        wandb.define_metric("d_loss", summary="min")
+        wandb.define_metric("d_loss_real", summary="last")
+        wandb.define_metric("d_loss_fake", summary="last")
+        wandb.define_metric("g_loss", summary="min")
+        wandb.define_metric("wasserstein_distance", summary="max")
+
+        # -----------------------------------------------------------------
+        # Weight Statistics Group
+        # -----------------------------------------------------------------
+        wandb.define_metric("critic_weight_mean", summary="last")
+        wandb.define_metric("critic_weight_std", summary="last")
+        wandb.define_metric("generator_weight_mean", summary="last")
+        wandb.define_metric("generator_weight_std", summary="last")
+
+        # -----------------------------------------------------------------
+        # Stability Metrics Group
+        # -----------------------------------------------------------------
+        wandb.define_metric("dg_ratio", summary="last")
+        wandb.define_metric("clip_ratio", summary="min")
+        wandb.define_metric("loss_variance", summary="last")
+        wandb.define_metric("epoch_time", summary="mean")
+
+        # -----------------------------------------------------------------
+        # Quality Metrics Group (sparse - every 100 epochs)
+        # -----------------------------------------------------------------
+        wandb.define_metric("fid_score", summary="min")
+        wandb.define_metric("inception_score_mean", summary="max")
+        wandb.define_metric("inception_score_std", summary="last")
+        wandb.define_metric("pixel_variance", summary="last")
+
+        print("✓ W&B custom chart configuration defined")
+
+    except Exception as e:
+        print(f"⚠ W&B chart definition failed: {e}")

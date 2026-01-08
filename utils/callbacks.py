@@ -1,8 +1,17 @@
+"""
+Keras Callbacks for Deep Learning Training.
+
+This module provides custom callbacks for training neural networks:
+    - LRFinder: Find optimal learning rate using Leslie Smith's method
+    - LRLogger: Log learning rates to console and W&B
+    - GPUMemoryLogger: Track GPU memory usage during training
+    - get_lr_scheduler: Factory for ReduceLROnPlateau callback
+    - get_early_stopping: Factory for EarlyStopping callback
+"""
 
 import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
-from keras.callbacks import Callback, ReduceLROnPlateau
 from keras.callbacks import Callback, ReduceLROnPlateau
 import keras.backend as K
 import wandb
@@ -97,9 +106,9 @@ class LRFinder(Callback):
         # Calculate and set new Learning Rate
         self.batch_num += 1
         if self.batch_num < self.total_steps:
-             # Exponential increase
-             new_lr = self.min_lr * (self.max_lr / self.min_lr) ** (self.batch_num / self.total_steps)
-             self.model.optimizer.learning_rate.assign(new_lr)
+            # Exponential increase
+            new_lr = self.min_lr * (self.max_lr / self.min_lr) ** (self.batch_num / self.total_steps)
+            self.model.optimizer.learning_rate.assign(new_lr)
 
     def _calculate_optimal_lrs(self, skip_begin, skip_end, valley_threshold=0.8):
         """
@@ -234,8 +243,6 @@ class LRFinder(Callback):
         selected = candidates.get(method, candidates['recommended'])
         return selected
 
-
-
     def plot_loss(self, n_skip_beginning=10, n_skip_end=5):
         """
         Plot the loss versus learning rate with all optimal LR candidates.
@@ -282,7 +289,6 @@ class LRFinder(Callback):
         plt.grid(True, which="both", ls="-", alpha=0.3)
         plt.tight_layout()
         plt.show()
-
 
 
 def get_lr_scheduler(monitor='val_loss', patience=2, factor=0.5, min_lr=1e-6) -> ReduceLROnPlateau:
@@ -337,8 +343,6 @@ def get_early_stopping(monitor='loss', patience=10, min_delta=1e-4,
         >>> model.fit(x, y, epochs=200, callbacks=[early_stop])
     """
     from keras.callbacks import EarlyStopping
-    
-
     return EarlyStopping(
         monitor=monitor,
         patience=patience,

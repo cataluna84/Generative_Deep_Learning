@@ -102,8 +102,6 @@ def get_gpu_vram_gb() -> int:
     except Exception as e:
         print(f"WARNING: Error detecting GPU VRAM: {e}. Using default of 8GB.")
         return 8
-            
-
 
 
 def get_gpu_memory_info() -> Dict[str, float]:

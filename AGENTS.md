@@ -57,23 +57,26 @@ Ensure all deliverables meet these requirements:
 
 ```
 Generative_Deep_Learning/
-├── scripts/                # Notebook standardization scripts
-│   ├── standardize_gan_notebook.py
-│   └── update_notebook_cell.py
 ├── utils/                  # Shared root utilities
 │   ├── callbacks.py        # LRFinder, LRLogger, get_lr_scheduler, get_early_stopping
-│   ├── wandb_utils.py      # W&B integration helpers
-│   └── gpu_utils.py        # Dynamic batch size finder (binary search + OOM detection)
+│   ├── gpu_utils.py        # Dynamic batch size finder
+│   ├── wandb_utils.py      # W&B integration (init_wandb, define_wgan_charts)
+│   └── gan/                # GAN-specific utilities
+│       ├── metrics.py      # Per-epoch training metrics
+│       ├── quality_metrics.py  # FID, IS, pixel variance
+│       ├── stability_analysis.py  # Stability indicators
+│       └── report_generator.py    # Analysis reports
+├── scripts/                # Notebook standardization (39 scripts)
 ├── v1/                     # 1st Edition (2019) - 22 notebooks
 │   ├── notebooks/          # Jupyter notebooks (.ipynb)
 │   ├── data_download_scripts/  # Data download scripts
+│   ├── src/
+│   │   ├── models/         # AE, VAE, GAN, WGAN, WGANGP, CycleGAN, MuseGAN
+│   │   │   └── layers/     # Custom layers (InstanceNorm, ReflectionPadding)
+│   │   └── utils/          # Loaders, preprocessing
 │   ├── data/               # Downloaded datasets (gitignored)
-│   ├── run/                # Model outputs (gitignored)
-│   └── src/
-│       ├── models/         # AE, VAE, GAN, WGAN, WGANGP, CycleGAN, MuseGAN
-│       │   └── layers/     # Custom layers (InstanceNorm, ReflectionPadding)
-│       └── utils/          # Loaders, callbacks, visualization
-├── v2/                     # 2nd Edition (2023) - Organized by chapter
+│   └── run/                # Model outputs (gitignored)
+├── v2/                     # 2nd Edition (2023) - 10 chapter directories
 │   ├── 02_deeplearning/    # MLP, CNN basics
 │   ├── 03_vae/             # Variational Autoencoders
 │   ├── 04_gan/             # GANs
@@ -86,13 +89,12 @@ Generative_Deep_Learning/
 │   ├── src/                # V2 models & utilities
 │   └── utils.py            # Shared V2 utilities
 ├── docker/                 # Docker configuration (CPU/GPU)
-├── documentation/          # Setup guides
-│   ├── UV_SETUP.md
-│   ├── GPU_SETUP.md
-│   ├── WANDB_SETUP.md
-│   ├── CALLBACKS.md
-│   ├── CELEBA_SETUP.md
-│   └── NOTEBOOK_STANDARDIZATION.md
+├── documentation/          # 5 consolidated guides
+│   ├── QUICKSTART.md
+│   ├── TRAINING_GUIDE.md
+│   ├── GAN_GUIDE.md
+│   ├── NOTEBOOK_STANDARDIZATION.md
+│   └── TRAINING_STABILITY_ANALYSIS_TEMPLATE.md
 ├── .agent/workflows/       # Custom AI agent workflows
 ├── pyproject.toml          # Project dependencies
 └── sample.env              # Environment template
@@ -257,6 +259,36 @@ wandb.finish()
 For a detailed guide on standardizing notebooks (Config, W&B, LRFinder), see:
 [Notebook Standardization Guide](documentation/NOTEBOOK_STANDARDIZATION.md)
 
+### GAN-Specific W&B Integration
+
+GANs use custom training loops with per-epoch metrics logging:
+
+```python
+from utils.wandb_utils import init_wandb, define_wgan_charts
+
+# Initialize W&B
+run = init_wandb(name="wgan_horses_001", config={
+    "batch_size": 512, "epochs": 12000, "n_critic": 5
+})
+
+# Configure 23 W&B charts with step_metric='epoch'
+define_wgan_charts()
+
+# Train with per-epoch logging
+gan.train(x_train, batch_size=512, epochs=12000, 
+          verbose=True, wandb_log=True, quality_metrics_every=100)
+```
+
+**Logged Metrics (23 total):**
+| Category | Metrics |
+|----------|---------|
+| Losses | d_loss, d_loss_real, d_loss_fake, g_loss, wasserstein_distance |
+| Weights | critic_weight_mean/std, generator_weight_mean/std |
+| Stability | dg_ratio, clip_ratio, loss_variance, epoch_time |
+| Quality | fid_score, inception_score_mean/std, pixel_variance |
+
+See **[GAN_TRAINING_METRICS.md](documentation/GAN_TRAINING_METRICS.md)** for metric formulas and interpretation.
+
 ---
 
 ## Callbacks & Learning Rate Tools
@@ -344,13 +376,11 @@ model.fit(x, y, epochs=200, callbacks=callbacks)
 
 | Guide | Description |
 |-------|-------------|
-| [UV_SETUP.md](documentation/UV_SETUP.md) | UV package manager installation |
-| [GPU_SETUP.md](documentation/GPU_SETUP.md) | TensorFlow GPU/CUDA configuration |
-| [WANDB_SETUP.md](documentation/WANDB_SETUP.md) | Weights & Biases integration |
-| [CALLBACKS.md](documentation/CALLBACKS.md) | LRFinder, schedulers, early stopping |
-| [CELEBA_SETUP.md](documentation/CELEBA_SETUP.md) | CelebA dataset download & setup |
-| [DYNAMIC_BATCH_SIZE.md](documentation/DYNAMIC_BATCH_SIZE.md) | Dynamic batch sizing with OOM detection |
-| [NOTEBOOK_STANDARDIZATION.md](documentation/NOTEBOOK_STANDARDIZATION.md) | Notebook development workflow |
+| [QUICKSTART.md](documentation/QUICKSTART.md) | Installation, UV, and GPU setup |
+| [TRAINING_GUIDE.md](documentation/TRAINING_GUIDE.md) | Callbacks, batch sizing, W&B integration |
+| [GAN_GUIDE.md](documentation/GAN_GUIDE.md) | GAN metrics, stability, and triage |
+| [NOTEBOOK_STANDARDIZATION.md](documentation/NOTEBOOK_STANDARDIZATION.md) | Complete notebook workflow |
+| [TRAINING_STABILITY_ANALYSIS_TEMPLATE.md](documentation/TRAINING_STABILITY_ANALYSIS_TEMPLATE.md) | Training analysis report template |
 
 ---
 

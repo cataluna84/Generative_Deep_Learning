@@ -46,23 +46,20 @@ v1/
 │   ├── download_celeba_kaggle.sh
 │   ├── download_cyclegan_data.sh
 │   └── download_gutenburg_data.sh
-├── data/                   # Downloaded datasets (gitignored)
-├── run/                    # Model outputs (gitignored)
 ├── src/
 │   ├── models/             # Model implementations
 │   │   ├── AE.py           # Autoencoder
 │   │   ├── VAE.py          # Variational Autoencoder
 │   │   ├── GAN.py          # Vanilla GAN
-│   │   ├── WGAN.py         # Wasserstein GAN
+│   │   ├── WGAN.py         # Wasserstein GAN (with per-epoch metrics)
 │   │   ├── WGANGP.py       # WGAN with Gradient Penalty
 │   │   ├── cycleGAN.py     # Image-to-image translation
 │   │   ├── MuseGAN.py      # Music generation
 │   │   ├── RNNAttention.py # Attention for sequences
-│   │   └── layers/         # Custom layers
-│   └── utils/              # Loaders, preprocessing
-│       ├── loaders.py
-│       ├── callbacks.py
-│       └── write.py
+│   │   └── layers/         # Custom layers (InstanceNorm, ReflectionPadding)
+│   └── utils/              # V1-specific loaders, preprocessing
+├── data/                   # Downloaded datasets (gitignored)
+├── run/                    # Model outputs (gitignored)
 └── AGENTS.md               # This file
 ```
 
@@ -150,7 +147,7 @@ BATCH_SIZE = find_optimal_batch_size(model=my_model, input_shape=(28, 28, 1))
 EPOCHS = calculate_adjusted_epochs(200, 32, BATCH_SIZE)
 ```
 
-See **[../documentation/DYNAMIC_BATCH_SIZE.md](../documentation/DYNAMIC_BATCH_SIZE.md)** for full API.
+See **[../documentation/TRAINING_GUIDE.md](../documentation/TRAINING_GUIDE.md)** for full API.
 
 ---
 
@@ -249,7 +246,6 @@ model.load_weights("run/ae/weights.weights.h5")
 ## Related Documentation
 
 - **[../documentation/NOTEBOOK_STANDARDIZATION.md](../documentation/NOTEBOOK_STANDARDIZATION.md)** - Complete workflow
-- **[../documentation/CALLBACKS.md](../documentation/CALLBACKS.md)** - Callback reference
-- **[../documentation/DYNAMIC_BATCH_SIZE.md](../documentation/DYNAMIC_BATCH_SIZE.md)** - Dynamic batch sizing
-- **[../documentation/CELEBA_SETUP.md](../documentation/CELEBA_SETUP.md)** - CelebA setup
-- **[../documentation/GPU_SETUP.md](../documentation/GPU_SETUP.md)** - GPU configuration
+- **[../documentation/QUICKSTART.md](../documentation/QUICKSTART.md)** - Installation and GPU setup
+- **[../documentation/TRAINING_GUIDE.md](../documentation/TRAINING_GUIDE.md)** - Callbacks, batch sizing, W&B
+- **[../documentation/GAN_GUIDE.md](../documentation/GAN_GUIDE.md)** - GAN metrics and stability

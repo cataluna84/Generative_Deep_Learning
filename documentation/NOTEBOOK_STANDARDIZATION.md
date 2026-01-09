@@ -312,54 +312,151 @@ IPython.Application.instance().kernel.do_shutdown(restart=True)
 
 ## GAN-Specific Standardization
 
-GANs use custom training loops, so standard Keras callbacks don't apply.
+GANs use custom training loops, so standard Keras callbacks don't apply. The WGAN implementation includes comprehensive per-epoch metrics logging.
 
-### GAN Training Configuration
+### GAN W&B Initialization
 
 ```python
-# LR Scheduler (Step Decay)
-LR_DECAY_FACTOR = 0.5  # Halve LR at each decay point
-LR_DECAY_EPOCHS = EPOCHS // 4  # Decay 4 times during training
+from utils.wandb_utils import init_wandb, define_wgan_charts
 
-# Training call with W&B and LR scheduling
+# Initialize W&B with hyperparameters
+run = init_wandb(
+    name=f"wgan_{DATASET}_001",
+    project="generative-deep-learning",
+    config={
+        "model": "WGAN",
+        "dataset": DATASET,
+        "batch_size": BATCH_SIZE,
+        "epochs": EPOCHS,
+        "learning_rate": LEARNING_RATE,
+        "n_critic": N_CRITIC,
+        "clip_threshold": CLIP_THRESHOLD,
+        "z_dim": Z_DIM,
+    }
+)
+
+# Configure 23 W&B charts with step_metric='epoch'
+define_wgan_charts()
+```
+
+### GAN Training with Per-Epoch Logging
+
+The WGAN training method logs 23 metrics to W&B every epoch:
+
+```python
 gan.train(
     x_train,
     batch_size=BATCH_SIZE,
     epochs=EPOCHS,
     run_folder=RUN_FOLDER,
-    print_every_n_batches=50,
-    use_wandb=True,
-    lr_decay_factor=LR_DECAY_FACTOR,
-    lr_decay_epochs=LR_DECAY_EPOCHS
+    print_every_n_batches=PRINT_EVERY_N_BATCHES,
+    n_critic=N_CRITIC,
+    clip_threshold=CLIP_THRESHOLD,
+    verbose=True,              # Enable detailed console output
+    quality_metrics_every=100, # FID/IS every 100 epochs
+    wandb_log=True             # Enable W&B per-epoch logging
 )
 ```
 
-### GAN Training Plots
+### Training Log Output
 
-After training, plot loss, accuracy, and LR history:
+Each epoch displays four categories of metrics:
+
+```
+═══════════════════════════════════════════════════════════════════════════
+Epoch 11999/12000 [1.46s]
+───────────────────────────────────────────────────────────────────────────
+  Losses     │ D: 5.4859 (R:5.4853 F:5.4865)  G: -115.549  W-dist: 115.55
+  Weights    │ Critic μ:0.0024 σ:0.0096  Gen μ:0.0028 σ:0.0810
+  Stability  │ D/G Ratio: 0.0475  Clip%: 0.0%  Var: 0.000002
+═══════════════════════════════════════════════════════════════════════════
+
+  Computing quality metrics...
+  Quality    │ FID: 333.1  IS: 2.12±0.19  PixVar: 0.2960
+```
+
+### Metrics Categories
+
+| Category | Metrics | Description |
+|----------|---------|-------------|
+| **Losses** | D, R, F, G, W-dist | Critic/Generator losses, Wasserstein distance |
+| **Weights** | Critic μ/σ, Gen μ/σ | Weight statistics for pathology detection |
+| **Stability** | D/G Ratio, Clip%, Var | Training balance and stability indicators |
+| **Quality** | FID, IS, PixVar | Image quality (every 100 epochs) |
+
+> [!TIP]
+> See **[GAN_TRAINING_METRICS.md](GAN_TRAINING_METRICS.md)** for detailed metric formulas and interpretation.
+
+### Master Experiment Log
+
+Maintain a markdown table in notebooks tracking all training runs:
+
+```markdown
+| Run | Date | W&B URL | Batch Size | Epochs | LR | Stability | D Loss | G Loss | Notes |
+|-----|------|---------|------------|--------|-----|-----------|--------|--------|-------|
+| 001 | 2026-01-07 | [View](url) | 512 | 6000 | 5e-5 | ✅ Stable | 5.35 | -116.4 | Baseline |
+| 002 | 2026-01-08 | [View](url) | 512 | 12000 | 5e-5 | ✅ Stable | 5.49 | -115.5 | Extended run |
+```
+
+### GAN Training Visualization
+
+After training, create separate plots for each metric:
 
 ```python
-fig, axes = plt.subplots(1, 3, figsize=(18, 5))
+import matplotlib.pyplot as plt
 
-# Loss plot
-axes[0].plot([x[0] for x in gan.d_losses], label='D')
-axes[0].plot([x[0] for x in gan.g_losses], label='G')
-axes[0].set_title('Loss')
-axes[0].legend()
+# Plot 1: Losses
+fig, ax = plt.subplots(figsize=(12, 4))
+ax.plot([x[0] for x in gan.d_losses], label='D Loss', alpha=0.7)
+ax.plot(gan.g_losses, label='G Loss', alpha=0.7)
+ax.set_title('Critic/Generator Loss Over Epochs')
+ax.legend()
+plt.savefig(os.path.join(RUN_FOLDER, 'plots/losses.png'))
 
-# Accuracy plot
-axes[1].plot([x[3] for x in gan.d_losses], label='D')
-axes[1].set_title('Accuracy')
-axes[1].legend()
+# Plot 2: Wasserstein Distance
+fig, ax = plt.subplots(figsize=(12, 4))
+ax.plot(gan.metrics_history['wasserstein_dist'])
+ax.set_title('Wasserstein Distance (Training Progress)')
+plt.savefig(os.path.join(RUN_FOLDER, 'plots/wasserstein.png'))
 
-# LR plot (log scale)
-axes[2].semilogy(gan.d_lr_history, label='D LR')
-axes[2].semilogy(gan.g_lr_history, label='G LR')
-axes[2].set_title('Learning Rate')
-axes[2].legend()
+# Plot 3: Weight Statistics
+fig, axes = plt.subplots(1, 2, figsize=(14, 4))
+axes[0].plot(gan.metrics_history['critic_weight_mean'], label='Mean')
+axes[0].plot(gan.metrics_history['critic_weight_std'], label='Std')
+axes[0].set_title('Critic Weight Statistics')
+axes[1].plot(gan.metrics_history['generator_weight_mean'], label='Mean')
+axes[1].plot(gan.metrics_history['generator_weight_std'], label='Std')
+axes[1].set_title('Generator Weight Statistics')
+```
 
-plt.tight_layout()
-plt.savefig(os.path.join(RUN_FOLDER, 'training_summary.png'))
+### Stability Analysis Report
+
+Generate analysis reports for each training run saved to `run/<model>/<run_id>/`:
+
+```markdown
+# Training Stability Analysis Report
+
+## Run Summary
+- **Run ID**: 0002_horses
+- **Date**: 2026-01-08
+- **Final Epoch**: 12000
+- **W&B URL**: [View Dashboard](https://wandb.ai/...)
+
+## Stability Assessment: ✅ STABLE
+
+### Key Indicators
+| Metric | Final Value | Status |
+|--------|-------------|--------|
+| D/G Ratio | 0.0475 | ✅ Balanced |
+| Clip% | 0.0% | ✅ Within bounds |
+| Loss Variance | 0.000002 | ✅ Stable |
+
+### Quality Metrics (Final)
+| Metric | Value | Assessment |
+|--------|-------|------------|
+| FID | 333.1 | Fair (CIFAR-32 typical) |
+| IS | 2.12±0.19 | Moderate |
+| PixVar | 0.296 | ✅ Good diversity |
 ```
 
 ---
@@ -413,8 +510,31 @@ uv run python scripts/standardize_gan_notebook.py
 
 ## Related Documentation
 
-- **[CALLBACKS.md](CALLBACKS.md)** - Full callback reference
-- **[WANDB_SETUP.md](WANDB_SETUP.md)** - W&B account setup
-- **[GPU_SETUP.md](GPU_SETUP.md)** - GPU configuration & batch sizes
-- **[UV_SETUP.md](UV_SETUP.md)** - UV package manager
-- **[CELEBA_SETUP.md](CELEBA_SETUP.md)** - CelebA dataset setup
+- **[QUICKSTART.md](QUICKSTART.md)** - Installation and GPU setup
+- **[TRAINING_GUIDE.md](TRAINING_GUIDE.md)** - Callbacks, batch sizing, W&B integration
+- **[GAN_GUIDE.md](GAN_GUIDE.md)** - GAN metrics, stability, and triage
+- **[TRAINING_STABILITY_ANALYSIS_TEMPLATE.md](TRAINING_STABILITY_ANALYSIS_TEMPLATE.md)** - Analysis report template
+
+---
+
+## CelebA Dataset Setup
+
+The CelebA dataset is required for face-related notebooks (`03_05_vae_faces_train`, `04_03_wgangp_faces_train`).
+
+### Automated Download
+
+```bash
+bash v1/data_download_scripts/download_celeba_kaggle.sh
+```
+
+**Prerequisites:** Kaggle credentials in `.env`:
+```env
+KAGGLE_USERNAME=your_username
+KAGGLE_KEY=your_api_key
+```
+
+### Manual Download
+
+1. Download from [Kaggle CelebA](https://www.kaggle.com/datasets/jessicali9530/celeba-dataset)
+2. Extract to `v1/data/img_align_celeba/images/`
+3. Verify: `ls v1/data/img_align_celeba/images/*.jpg | wc -l` → 202599

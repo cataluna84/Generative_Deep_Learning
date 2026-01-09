@@ -21,13 +21,23 @@ All code and notebooks in this repository adhere to the following standards:
 
 ```
 Generative_Deep_Learning/
-├── scripts/                # Notebook standardization scripts
-│   ├── standardize_gan_notebook.py
-│   └── update_notebook_cell.py
 ├── utils/                  # Shared root utilities
+│   ├── __init__.py
 │   ├── callbacks.py        # LRFinder, LRLogger, get_lr_scheduler, get_early_stopping
-│   ├── wandb_utils.py      # W&B integration helpers
-│   └── gpu_utils.py        # Dynamic batch size finder (binary search + OOM detection)
+│   ├── gpu_utils.py        # Dynamic batch size finder (binary search + OOM detection)
+│   ├── wandb_utils.py      # W&B integration helpers (init_wandb, define_wgan_charts)
+│   └── gan/                # GAN-specific utilities
+│       ├── __init__.py
+│       ├── metrics.py      # Per-epoch training metrics collection
+│       ├── quality_metrics.py  # FID, IS, pixel variance
+│       ├── stability_analysis.py  # Training stability indicators
+│       └── report_generator.py    # Analysis report generation
+│
+├── scripts/                # Notebook standardization scripts (39 files)
+│   ├── standardize_*.py    # Notebook standardization scripts
+│   ├── update_*.py         # Cell update scripts
+│   └── fix_*.py            # Bug fix scripts
+│
 ├── v1/                     # 1st Edition (2019) - 22 notebooks
 │   ├── notebooks/          # Jupyter notebooks (.ipynb)
 │   │   ├── 02_*            # Deep Learning basics (MLP, CNN)
@@ -36,16 +46,24 @@ Generative_Deep_Learning/
 │   │   ├── 05_*            # CycleGAN
 │   │   ├── 06_*            # Text generation (LSTM, Q&A)
 │   │   ├── 07_*            # Music generation (MuseGAN)
-│   │   └── 09_*                # Positional encoding
+│   │   └── 09_*            # Positional encoding
 │   ├── data_download_scripts/  # Data download scripts
 │   │   ├── download_camel_data.sh
 │   │   ├── download_celeba_kaggle.sh
 │   │   ├── download_cyclegan_data.sh
 │   │   └── download_gutenburg_data.sh
 │   ├── src/
-│   │   ├── models/         # AE, VAE, GAN, WGAN, WGANGP, CycleGAN, MuseGAN
+│   │   ├── models/         # Model implementations
+│   │   │   ├── AE.py       # Autoencoder
+│   │   │   ├── VAE.py      # Variational Autoencoder
+│   │   │   ├── GAN.py      # Vanilla GAN
+│   │   │   ├── WGAN.py     # Wasserstein GAN (with per-epoch metrics)
+│   │   │   ├── WGANGP.py   # WGAN with Gradient Penalty
+│   │   │   ├── cycleGAN.py # Image-to-image translation
+│   │   │   ├── MuseGAN.py  # Music generation
+│   │   │   ├── RNNAttention.py  # Attention for sequences
 │   │   │   └── layers/     # Custom layers (InstanceNorm, ReflectionPadding)
-│   │   └── utils/          # Loaders, preprocessing, callbacks
+│   │   └── utils/          # V1-specific loaders, preprocessing
 │   ├── data/               # Downloaded datasets (gitignored)
 │   ├── run/                # Model outputs (gitignored)
 │   └── AGENTS.md           # V1-specific AI agent context
@@ -61,8 +79,6 @@ Generative_Deep_Learning/
 │   ├── 09_transformer/     # Attention Mechanisms
 │   ├── 11_music/           # Music Generation
 │   ├── src/                # V2 models & utilities
-│   │   ├── models/
-│   │   └── utils/
 │   ├── utils.py            # Shared V2 utilities
 │   └── AGENTS.md           # V2-specific AI agent context
 │
@@ -73,19 +89,19 @@ Generative_Deep_Learning/
 │   ├── launch-docker-gpu.sh
 │   └── README.md           # Docker usage instructions
 │
-├── documentation/          # Setup guides
-│   ├── UV_SETUP.md         # UV package manager installation
-│   ├── GPU_SETUP.md        # GPU/CUDA configuration
-│   ├── WANDB_SETUP.md      # Weights & Biases integration
-│   ├── CALLBACKS.md        # Keras callbacks reference
-│   ├── CELEBA_SETUP.md     # CelebA dataset setup
-│   └── NOTEBOOK_STANDARDIZATION.md  # Standardization workflow
+├── documentation/          # Project documentation (5 consolidated guides)
+│   ├── QUICKSTART.md       # Installation, UV, and GPU setup
+│   ├── TRAINING_GUIDE.md   # Callbacks, batch sizing, W&B
+│   ├── GAN_GUIDE.md        # GAN metrics, stability, triage
+│   ├── NOTEBOOK_STANDARDIZATION.md  # Complete workflow
+│   └── TRAINING_STABILITY_ANALYSIS_TEMPLATE.md  # Analysis template
 │
 ├── .agent/                 # AI agent workflows
 │   └── workflows/          # Custom workflow definitions
 │
 ├── tests/                  # Test files
 ├── AGENTS.md               # Root AI agent context
+├── README.md               # Project overview
 ├── pyproject.toml          # UV/uv dependencies
 ├── uv.lock                 # Locked dependencies
 ├── sample.env              # Environment template
@@ -200,7 +216,7 @@ wandb login --verify
 | TensorFlow | 2.20+ (with bundled CUDA 12.x) |
 | GPU (Recommended) | NVIDIA GTX 1060+ (8GB VRAM recommended) |
 
-See [GPU_SETUP.md](documentation/GPU_SETUP.md) for detailed GPU configuration.
+See [QUICKSTART.md](documentation/QUICKSTART.md) for detailed GPU configuration.
 
 ---
 
@@ -219,7 +235,7 @@ model.fit(x, y, callbacks=[WandbMetricsLogger()])
 wandb.finish()
 ```
 
-See [WANDB_SETUP.md](documentation/WANDB_SETUP.md).
+See [TRAINING_GUIDE.md](documentation/TRAINING_GUIDE.md).
 
 ### Learning Rate Finder
 
@@ -243,7 +259,7 @@ optimal_lr = lr_finder.get_optimal_lr()
 | 🟣 | `'valley'` | Robust, data-driven (80% decline) |
 | 🟢 | `'min_loss_10'` | Conservative, stable |
 
-See [CALLBACKS.md](documentation/CALLBACKS.md).
+See [TRAINING_GUIDE.md](documentation/TRAINING_GUIDE.md).
 
 ### Notebook Standardization
 
@@ -283,7 +299,7 @@ Estimated Model Memory: 19.8 MB
 ✓ Optimal batch size: 460
 ```
 
-See [DYNAMIC_BATCH_SIZE.md](documentation/DYNAMIC_BATCH_SIZE.md).
+See [TRAINING_GUIDE.md](documentation/TRAINING_GUIDE.md).
 
 ---
 
@@ -317,13 +333,11 @@ See [DYNAMIC_BATCH_SIZE.md](documentation/DYNAMIC_BATCH_SIZE.md).
 
 | Guide | Description |
 |-------|-------------|
-| [UV_SETUP.md](documentation/UV_SETUP.md) | UV package manager installation |
-| [GPU_SETUP.md](documentation/GPU_SETUP.md) | TensorFlow GPU/CUDA configuration |
-| [WANDB_SETUP.md](documentation/WANDB_SETUP.md) | Weights & Biases integration |
-| [CALLBACKS.md](documentation/CALLBACKS.md) | LRFinder, schedulers, early stopping |
-| [CELEBA_SETUP.md](documentation/CELEBA_SETUP.md) | CelebA dataset download & setup |
-| [DYNAMIC_BATCH_SIZE.md](documentation/DYNAMIC_BATCH_SIZE.md) | Dynamic batch sizing with OOM detection |
-| [NOTEBOOK_STANDARDIZATION.md](documentation/NOTEBOOK_STANDARDIZATION.md) | Notebook development workflow |
+| [QUICKSTART.md](documentation/QUICKSTART.md) | Installation, UV, and GPU setup |
+| [TRAINING_GUIDE.md](documentation/TRAINING_GUIDE.md) | Callbacks, batch sizing, W&B integration |
+| [GAN_GUIDE.md](documentation/GAN_GUIDE.md) | GAN metrics, stability, and triage |
+| [NOTEBOOK_STANDARDIZATION.md](documentation/NOTEBOOK_STANDARDIZATION.md) | Complete notebook workflow |
+| [TRAINING_STABILITY_ANALYSIS_TEMPLATE.md](documentation/TRAINING_STABILITY_ANALYSIS_TEMPLATE.md) | Training analysis report template |
 
 ---
 

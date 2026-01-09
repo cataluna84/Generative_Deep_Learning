@@ -38,13 +38,7 @@ Ensure all notebooks and source code in `v2/` meet these requirements:
 v2/
 ├── 02_deeplearning/        # MLP, CNN basics
 ├── 03_vae/                 # Variational Autoencoders
-│   ├── 01_autoencoder/
-│   ├── 02_vae/
-│   └── 03_vae_faces/
 ├── 04_gan/                 # GANs
-│   ├── 01_dcgan/
-│   ├── 02_wgan_gp/
-│   └── 03_conditional/
 ├── 05_autoregressive/      # LSTM, Transformers
 ├── 06_normflow/            # Normalizing Flows
 ├── 07_ebm/                 # Energy-Based Models
@@ -52,8 +46,6 @@ v2/
 ├── 09_transformer/         # Attention Mechanisms
 ├── 11_music/               # Music Generation
 ├── src/                    # V2-specific models
-│   ├── models/
-│   └── utils/
 ├── utils.py                # Shared V2 utilities
 └── AGENTS.md               # This file
 ```
@@ -225,7 +217,7 @@ BATCH_SIZE = find_optimal_batch_size(model=my_model, input_shape=(28, 28, 1))
 EPOCHS = calculate_adjusted_epochs(200, 32, BATCH_SIZE)
 ```
 
-See **[../documentation/DYNAMIC_BATCH_SIZE.md](../documentation/DYNAMIC_BATCH_SIZE.md)** for full API.
+See **[../documentation/TRAINING_GUIDE.md](../documentation/TRAINING_GUIDE.md)** for full API.
 
 ---
 
@@ -266,8 +258,6 @@ wandb.finish()
 ## Related Documentation
 
 - **[../documentation/NOTEBOOK_STANDARDIZATION.md](../documentation/NOTEBOOK_STANDARDIZATION.md)** - Complete workflow
-- **[../documentation/CALLBACKS.md](../documentation/CALLBACKS.md)** - Callback reference
-- **[../documentation/DYNAMIC_BATCH_SIZE.md](../documentation/DYNAMIC_BATCH_SIZE.md)** - Dynamic batch sizing
-- **[../documentation/WANDB_SETUP.md](../documentation/WANDB_SETUP.md)** - W&B setup
-- **[../documentation/GPU_SETUP.md](../documentation/GPU_SETUP.md)** - GPU configuration
-- **[../documentation/UV_SETUP.md](../documentation/UV_SETUP.md)** - Package manager
+- **[../documentation/QUICKSTART.md](../documentation/QUICKSTART.md)** - Installation and GPU setup
+- **[../documentation/TRAINING_GUIDE.md](../documentation/TRAINING_GUIDE.md)** - Callbacks, batch sizing, W&B
+- **[../documentation/GAN_GUIDE.md](../documentation/GAN_GUIDE.md)** - GAN metrics and stability

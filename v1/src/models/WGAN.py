@@ -746,6 +746,9 @@ class WGAN:
                 if wandb_log and WANDB_AVAILABLE:
                     try:
                         wandb.log({
+                            # Epoch tracking (required for charts using step_metric='epoch')
+                            'epoch': epoch,
+                            'total_epochs': total_epochs,
                             # Loss metrics
                             'd_loss': metrics['d_loss'],
                             'd_loss_real': metrics['d_loss_real'],
@@ -763,7 +766,7 @@ class WGAN:
                             'epoch_time': metrics['epoch_time'],
                             # Loss variance (if available)
                             'loss_variance': metrics.get('loss_variance', 0),
-                        }, step=epoch)
+                        })
                     except Exception as e:
                         # Silently ignore W&B errors to not interrupt training
                         pass
@@ -803,6 +806,8 @@ class WGAN:
                         if wandb_log and WANDB_AVAILABLE:
                             try:
                                 wandb.log({
+                                    # Epoch tracking for quality metrics
+                                    'epoch': epoch,
                                     'fid_score': quality.get('fid_score', 0),
                                     'inception_score_mean': quality.get(
                                         'inception_score_mean', 0
@@ -813,7 +818,7 @@ class WGAN:
                                     'pixel_variance': quality.get(
                                         'pixel_variance', 0
                                     ),
-                                }, step=epoch)
+                                })
                             except Exception:
                                 pass  # Silently ignore W&B errors
 

@@ -19,11 +19,20 @@ __pycache__/
 
 #Autoencoder Output
 v1/run/vae/0001_digits/images
+v1/run/vae/0001_digits/weights/
+
 v1/run/vae/0001_faces/images
+v1/run/vae/0001_faces/weights/
+
 v1/run/vae/0002_digits/images
+v1/run/vae/0002_digits/weights/
 
 v1/run/gan/0001_camel/images
+v1/run/gan/0001_camel/weights/
+
 v1/run/gan/0002_horses/images
+v1/run/gan/0002_horses/weights/
+
 v1/data/img_align_celeba
 
 # Distribution / packaging

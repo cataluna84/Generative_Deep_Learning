@@ -244,7 +244,8 @@ def load_cifar(label, num):
 
 
 def load_celeb(data_name, image_size, batch_size):
-    data_folder = os.path.join("./data", data_name)
+    # Use ../data for notebooks running from v1/notebooks/
+    data_folder = os.path.join("../data", data_name)
 
     data_gen = ImageDataGenerator(preprocessing_function=lambda x: (x.astype('float32') - 127.5) / 127.5)
 

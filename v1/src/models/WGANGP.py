@@ -587,7 +587,8 @@ class WGANGP:
         # Initial dense layer to expand latent vector
         # ---------------------------------------------------------------------
         # Compute total units needed for initial feature map
-        initial_units = np.prod(self.generator_initial_dense_layer_size)
+        # Cast to int() for Keras 3.0+ compatibility (np.prod returns numpy.int64)
+        initial_units = int(np.prod(self.generator_initial_dense_layer_size))
         x = Dense(
             initial_units,
             kernel_initializer=self.weight_init
@@ -739,13 +740,25 @@ class WGANGP:
         # Unfreeze critic for next training iteration
         self.set_trainable(self.critic, True)
 
+        # =====================================================================
+        # OPTIMIZERS FOR GRADIENTTAPE-BASED TRAINING (Keras 3.0+)
+        # =====================================================================
+        # These are used by train_critic() and train_generator() methods
+        # which use tf.GradientTape for gradient computation
+        self.critic_optimizer = self.get_opti(self.critic_learning_rate)
+        self.generator_optimizer = self.get_opti(self.generator_learning_rate)
+
     # =========================================================================
     # TRAINING METHODS
     # =========================================================================
 
     def train_critic(self, x_train, batch_size, using_generator):
         """
-        Perform one critic training step.
+        Perform one critic training step using tf.GradientTape.
+
+        This implementation is compatible with Keras 3.0+ which doesn't
+        support K.gradients() on KerasTensors. Instead, we compute the
+        gradient penalty directly using tf.GradientTape.
 
         The critic is trained to maximize the Wasserstein distance while
         keeping gradients near unit norm (enforced by gradient penalty).
@@ -756,13 +769,8 @@ class WGANGP:
             using_generator (bool): If True, x_train is a data generator.
 
         Returns:
-            list: Loss values [total, real, fake, gradient_penalty].
+            list: Loss values [total, real_loss, fake_loss, gradient_penalty].
         """
-        # Labels: +1 for real, -1 for fake, 0 dummy for GP
-        valid = np.ones((batch_size, 1), dtype=np.float32)
-        fake = -np.ones((batch_size, 1), dtype=np.float32)
-        dummy = np.zeros((batch_size, 1), dtype=np.float32)
-
         # Get batch of real images
         if using_generator:
             true_imgs = next(x_train)[0]
@@ -772,19 +780,63 @@ class WGANGP:
             idx = np.random.randint(0, x_train.shape[0], batch_size)
             true_imgs = x_train[idx]
 
-        # Generate noise for fake images
-        noise = np.random.normal(0, 1, (batch_size, self.z_dim))
+        # Convert to tensor
+        true_imgs = tf.cast(true_imgs, tf.float32)
 
-        # Train critic
-        d_loss = self.critic_model.train_on_batch(
-            [true_imgs, noise],
-            [valid, fake, dummy]
+        # Generate noise for fake images
+        noise = tf.random.normal((batch_size, self.z_dim))
+
+        with tf.GradientTape() as tape:
+            # Generate fake images
+            fake_imgs = self.generator(noise, training=True)
+
+            # Critic evaluates real and fake images
+            real_validity = self.critic(true_imgs, training=True)
+            fake_validity = self.critic(fake_imgs, training=True)
+
+            # Compute Wasserstein loss
+            # Critic wants: high scores for real, low scores for fake
+            # Loss = E[fake] - E[real] (minimizing this maximizes distance)
+            real_loss = -tf.reduce_mean(real_validity)
+            fake_loss = tf.reduce_mean(fake_validity)
+
+            # Gradient penalty
+            # Interpolate between real and fake images
+            alpha = tf.random.uniform((batch_size, 1, 1, 1), 0., 1.)
+            interpolated = alpha * true_imgs + (1 - alpha) * fake_imgs
+
+            # Compute gradients of critic output w.r.t. interpolated samples
+            with tf.GradientTape() as gp_tape:
+                gp_tape.watch(interpolated)
+                interp_validity = self.critic(interpolated, training=True)
+
+            grads = gp_tape.gradient(interp_validity, interpolated)
+
+            # Compute gradient norm
+            grad_norm = tf.sqrt(
+                tf.reduce_sum(tf.square(grads), axis=[1, 2, 3]) + 1e-8
+            )
+            gradient_penalty = tf.reduce_mean(tf.square(grad_norm - 1.0))
+
+            # Total critic loss
+            d_loss = real_loss + fake_loss + self.grad_weight * gradient_penalty
+
+        # Get critic trainable weights
+        critic_grads = tape.gradient(d_loss, self.critic.trainable_weights)
+        self.critic_optimizer.apply_gradients(
+            zip(critic_grads, self.critic.trainable_weights)
         )
-        return d_loss
+
+        return [
+            float(d_loss),
+            float(real_loss),
+            float(fake_loss),
+            float(gradient_penalty)
+        ]
 
     def train_generator(self, batch_size):
         """
-        Perform one generator training step.
+        Perform one generator training step using tf.GradientTape.
 
         The generator is trained to minimize the Wasserstein distance,
         i.e., fool the critic into outputting high scores for fake images.
@@ -795,14 +847,27 @@ class WGANGP:
         Returns:
             float: Generator loss value.
         """
-        # We want the critic to output +1 (real) for generated images
-        valid = np.ones((batch_size, 1), dtype=np.float32)
-
         # Generate noise
-        noise = np.random.normal(0, 1, (batch_size, self.z_dim))
+        noise = tf.random.normal((batch_size, self.z_dim))
 
-        # Train generator
-        return self.model.train_on_batch(noise, valid)
+        with tf.GradientTape() as tape:
+            # Generate fake images
+            fake_imgs = self.generator(noise, training=True)
+
+            # Critic evaluates generated images
+            fake_validity = self.critic(fake_imgs, training=True)
+
+            # Generator wants critic to output high scores (real)
+            # Loss = -E[critic(fake)] (minimizing this makes fake look real)
+            g_loss = -tf.reduce_mean(fake_validity)
+
+        # Get generator trainable weights
+        gen_grads = tape.gradient(g_loss, self.generator.trainable_weights)
+        self.generator_optimizer.apply_gradients(
+            zip(gen_grads, self.generator.trainable_weights)
+        )
+
+        return float(g_loss)
 
     def train(
         self,
@@ -812,7 +877,8 @@ class WGANGP:
         run_folder,
         print_every_n_batches=10,
         n_critic=5,
-        using_generator=False
+        using_generator=False,
+        wandb_log=False
     ):
         """
         Train the WGAN-GP model.
@@ -834,11 +900,21 @@ class WGANGP:
                 Default: 5 (as per WGAN-GP paper).
             using_generator (bool): If True, x_train is a data generator.
                 Default: False.
+            wandb_log (bool): If True, log metrics to Weights & Biases.
+                Default: False.
 
         Note:
             Every 100 epochs, the critic is trained 5 times regardless
             of n_critic to ensure stability.
         """
+        # Import wandb inside method to avoid import errors if not installed
+        if wandb_log:
+            try:
+                import wandb
+            except ImportError:
+                print("Warning: wandb not installed. Disabling W&B logging.")
+                wandb_log = False
+
         for epoch in range(self.epoch, self.epoch + epochs):
 
             # Every 100 epochs, enforce 5 critic updates for stability
@@ -859,18 +935,46 @@ class WGANGP:
             g_loss = self.train_generator(batch_size)
 
             # -----------------------------------------------------------------
-            # Log progress
+            # Log progress to console
             # -----------------------------------------------------------------
             print(
                 f"{epoch} ({critic_loops}, 1) "
                 f"[D loss: ({d_loss[0]:.1f})"
-                f"(R {d_loss[1]:.1f}, F {d_loss[2]:.1f}, G {d_loss[3]:.1f})] "
+                f"(R {d_loss[1]:.1f}, F {d_loss[2]:.1f}, GP {d_loss[3]:.1f})] "
                 f"[G loss: {g_loss:.1f}]"
             )
 
             # Store losses
             self.d_losses.append(d_loss)
             self.g_losses.append(g_loss)
+
+            # -----------------------------------------------------------------
+            # Log to W&B (per-epoch logging)
+            # -----------------------------------------------------------------
+            if wandb_log:
+                # Compute Wasserstein distance from critic losses
+                wasserstein_dist = abs(d_loss[1] - d_loss[2])
+
+                wandb.log({
+                    # Epoch counter
+                    "epoch": epoch,
+
+                    # Critic losses
+                    "d_loss/total": d_loss[0],
+                    "d_loss/real": d_loss[1],
+                    "d_loss/fake": d_loss[2],
+                    "d_loss/gradient_penalty": d_loss[3],
+
+                    # Generator loss
+                    "g_loss": g_loss,
+
+                    # Wasserstein distance (key training metric)
+                    "wasserstein_distance": wasserstein_dist,
+
+                    # Training dynamics
+                    "d_g_ratio": abs(d_loss[0] / g_loss) if g_loss != 0 else 0,
+                    "critic_updates": critic_loops,
+                })
 
             # -----------------------------------------------------------------
             # Save checkpoints
@@ -884,6 +988,20 @@ class WGANGP:
                     os.path.join(run_folder, 'weights/weights.weights.h5')
                 )
                 self.save_model(run_folder)
+
+                # Log sample images to W&B
+                if wandb_log:
+                    # Generate sample images for W&B
+                    sample_noise = np.random.normal(0, 1, (16, self.z_dim))
+                    sample_imgs = self.generator.predict(sample_noise, verbose=0)
+                    # Convert from [-1, 1] to [0, 1]
+                    sample_imgs = (sample_imgs + 1) / 2.0
+                    wandb.log({
+                        "generated_images": [
+                            wandb.Image(img, caption=f"Epoch {epoch}")
+                            for img in sample_imgs[:8]
+                        ]
+                    })
 
             self.epoch += 1
 

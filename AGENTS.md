@@ -279,15 +279,18 @@ gan.train(x_train, batch_size=512, epochs=12000,
           verbose=True, wandb_log=True, quality_metrics_every=100)
 ```
 
-**Logged Metrics (23 total):**
-| Category | Metrics |
-|----------|---------|
-| Losses | d_loss, d_loss_real, d_loss_fake, g_loss, wasserstein_distance |
-| Weights | critic_weight_mean/std, generator_weight_mean/std |
-| Stability | dg_ratio, clip_ratio, loss_variance, epoch_time |
-| Quality | fid_score, inception_score_mean/std, pixel_variance |
+**Logged Metrics (WGAN: 23 total, WGANGP: 9 total):**
 
-See **[GAN_TRAINING_METRICS.md](documentation/GAN_TRAINING_METRICS.md)** for metric formulas and interpretation.
+| Category | Metrics | Models |
+|----------|---------|--------|
+| Losses | d_loss, d_loss_real, d_loss_fake, g_loss, wasserstein_distance | WGAN, WGANGP |
+| Gradient Penalty | d_loss/gradient_penalty | WGANGP only |
+| Weights | critic_weight_mean/std, generator_weight_mean/std | WGAN only |
+| Stability | dg_ratio, clip_ratio, loss_variance, epoch_time | WGAN only |
+| Quality | fid_score, inception_score_mean/std, pixel_variance | WGAN only |
+| Images | generated_images | WGAN, WGANGP |
+
+See **[NOTEBOOK_STANDARDIZATION.md](documentation/NOTEBOOK_STANDARDIZATION.md)** for usage details.
 
 ---
 

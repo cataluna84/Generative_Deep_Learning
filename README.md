@@ -305,16 +305,16 @@ See [TRAINING_GUIDE.md](documentation/TRAINING_GUIDE.md).
 
 ## V1 Models
 
-| Model | File | Description |
-|-------|------|-------------|
-| Autoencoder | `v1/src/models/AE.py` | Standard autoencoder |
-| VAE | `v1/src/models/VAE.py` | Variational Autoencoder |
-| GAN | `v1/src/models/GAN.py` | Vanilla GAN |
-| WGAN | `v1/src/models/WGAN.py` | Wasserstein GAN |
-| WGANGP | `v1/src/models/WGANGP.py` | WGAN with Gradient Penalty |
-| CycleGAN | `v1/src/models/cycleGAN.py` | Image-to-image translation |
-| MuseGAN | `v1/src/models/MuseGAN.py` | Music generation |
-| RNNAttention | `v1/src/models/RNNAttention.py` | Attention for sequences |
+| Model | File | Description | W&B Logging |
+|-------|------|-------------|-------------|
+| Autoencoder | `v1/src/models/AE.py` | Standard autoencoder | — |
+| VAE | `v1/src/models/VAE.py` | Variational Autoencoder | — |
+| GAN | `v1/src/models/GAN.py` | Vanilla GAN | — |
+| WGAN | `v1/src/models/WGAN.py` | Wasserstein GAN | ✅ Per-epoch |
+| **WGANGP** | `v1/src/models/WGANGP.py` | WGAN with Gradient Penalty | **✅ Per-epoch** |
+| CycleGAN | `v1/src/models/cycleGAN.py` | Image-to-image translation | — |
+| MuseGAN | `v1/src/models/MuseGAN.py` | Music generation | — |
+| RNNAttention | `v1/src/models/RNNAttention.py` | Attention for sequences | — |
 
 ---
 

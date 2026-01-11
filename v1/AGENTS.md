@@ -51,8 +51,8 @@ v1/
 │   │   ├── AE.py           # Autoencoder
 │   │   ├── VAE.py          # Variational Autoencoder
 │   │   ├── GAN.py          # Vanilla GAN
-│   │   ├── WGAN.py         # Wasserstein GAN (with per-epoch metrics)
-│   │   ├── WGANGP.py       # WGAN with Gradient Penalty
+│   │   ├── WGAN.py         # Wasserstein GAN (with per-epoch W&B logging)
+│   │   ├── WGANGP.py       # WGAN with Gradient Penalty (per-epoch W&B logging)
 │   │   ├── cycleGAN.py     # Image-to-image translation
 │   │   ├── MuseGAN.py      # Music generation
 │   │   ├── RNNAttention.py # Attention for sequences

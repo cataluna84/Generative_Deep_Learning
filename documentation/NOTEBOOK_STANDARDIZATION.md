@@ -358,6 +358,37 @@ gan.train(
 )
 ```
 
+### WGAN-GP Per-Epoch Logging
+
+WGAN-GP (`v1/src/models/WGANGP.py`) uses `tf.GradientTape` for Keras 3.0+ compatibility and supports per-epoch W&B logging:
+
+```python
+gan.train(
+    x_train,
+    batch_size=BATCH_SIZE,
+    epochs=EPOCHS,
+    run_folder=RUN_FOLDER,
+    n_critic=N_CRITIC,
+    using_generator=True,
+    wandb_log=True  # Enable per-epoch W&B logging
+)
+```
+
+**Metrics Logged Every Epoch:**
+
+| Metric | Description |
+|--------|-------------|
+| `epoch` | Current epoch number |
+| `d_loss/total` | Total critic loss |
+| `d_loss/real` | Critic loss on real images |
+| `d_loss/fake` | Critic loss on fake images |
+| `d_loss/gradient_penalty` | Gradient penalty term |
+| `g_loss` | Generator loss |
+| `wasserstein_distance` | Estimated Wasserstein distance |
+| `d_g_ratio` | Critic/Generator loss ratio |
+| `generated_images` | Sample images (every N epochs) |
+
+
 ### Training Log Output
 
 Each epoch displays four categories of metrics:

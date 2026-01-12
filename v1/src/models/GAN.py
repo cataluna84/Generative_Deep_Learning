@@ -758,7 +758,9 @@ class GAN:
         using_generator: bool = False,
         use_wandb: bool = False,
         lr_decay_factor: float = 0.5,
-        lr_decay_epochs: int = 500
+        lr_decay_epochs: int = 500,
+        save_weights_every: int = 500,
+        save_images_every: int = 500
     ) -> None:
         """
         Train the GAN model with optional W&B logging and LR scheduling.
@@ -793,6 +795,10 @@ class GAN:
                 Default is 0.5 (halve the LR).
             lr_decay_epochs: Apply LR decay every N epochs.
                 Default is 500. Set to 0 to disable decay.
+            save_weights_every: Save model weights every N epochs.
+                Default is 500. Set to 0 to disable weight saving.
+            save_images_every: Save generated sample images every N epochs.
+                Default is 500. Set to 0 to disable image saving.
         
         Returns:
             None. Updates self.d_losses, self.g_losses, self.d_lr_history,
@@ -803,11 +809,12 @@ class GAN:
             ...     x_train,
             ...     batch_size=1024,
             ...     epochs=1500,
-            ...     run_folder='../run/gan/0001_camel',
-            ...     print_every_n_batches=50,
+            ...     run_folder='../run/gan/0001_camel/001',
             ...     use_wandb=True,
             ...     lr_decay_factor=0.5,
-            ...     lr_decay_epochs=375  # Decay 4 times: 375, 750, 1125
+            ...     lr_decay_epochs=375,
+            ...     save_weights_every=500,
+            ...     save_images_every=500
             ... )
         
         Note:
@@ -895,22 +902,11 @@ class GAN:
                 })
             
             # =================================================================
-            # PERIODIC SAVING
+            # PERIODIC SAVING - IMAGES
             # =================================================================
-            if epoch % print_every_n_batches == 0:
+            if save_images_every > 0 and epoch % save_images_every == 0:
                 # Save sample images
                 self.sample_images(run_folder)
-                
-                # Save weights
-                self.model.save_weights(
-                    os.path.join(run_folder, f'weights/weights-{epoch}.weights.h5')
-                )
-                self.model.save_weights(
-                    os.path.join(run_folder, 'weights/weights.weights.h5')
-                )
-                
-                # Save full model
-                self.save_model(run_folder)
                 
                 # Log sample images to W&B
                 if use_wandb:
@@ -919,6 +915,21 @@ class GAN:
                     )
                     if os.path.exists(sample_path):
                         wandb.log({"samples": wandb.Image(sample_path)})
+            
+            # =================================================================
+            # PERIODIC SAVING - WEIGHTS
+            # =================================================================
+            if save_weights_every > 0 and epoch % save_weights_every == 0:
+                # Save weights with epoch number
+                self.model.save_weights(
+                    os.path.join(run_folder, f'weights/weights-{epoch}.weights.h5')
+                )
+                # Save latest weights
+                self.model.save_weights(
+                    os.path.join(run_folder, 'weights/weights.weights.h5')
+                )
+                # Save full model
+                self.save_model(run_folder)
             
             # Increment epoch counter
             self.epoch += 1

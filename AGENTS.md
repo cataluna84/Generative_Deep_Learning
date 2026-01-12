@@ -166,6 +166,32 @@ model.save("model.keras")  # NOT .h5
 import keras.ops as ops
 ```
 
+### Run Folder Structure
+
+All training notebooks use a two-level folder structure for experiment isolation:
+
+```
+v1/run/{section}/{DATASET_RUN_ID}_{DATA_NAME}/{EXPERIMENT_RUN_ID}/
+├── {EXPERIMENT_RUN_ID}_analysis_report.md
+├── model.keras
+├── critic.keras / generator.keras
+├── images/          # Generated samples (every 500 epochs)
+├── viz/             # Training visualizations
+└── weights/         # Model checkpoints (every 500 epochs)
+```
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `DATASET_RUN_ID` | Unique dataset identifier | `0002` |
+| `DATA_NAME` | Human-readable dataset name | `horses` |
+| `EXPERIMENT_RUN_ID` | Experiment run number (3-digit) | `005` |
+
+**Auto-increment**: If `EXPERIMENT_RUN_ID` is set to `None`, the notebook automatically
+determines the next available run ID by scanning existing folders.
+
+**W&B Naming**: `{model}_{DATA_NAME}_{DATASET_RUN_ID}_{EXPERIMENT_RUN_ID}`
+Example: `wgan_horses_0002_005`
+
 ---
 
 ## Domain Vocabulary
@@ -276,7 +302,8 @@ define_wgan_charts()
 
 # Train with per-epoch logging
 gan.train(x_train, batch_size=512, epochs=12000, 
-          verbose=True, wandb_log=True, quality_metrics_every=100)
+          verbose=True, wandb_log=True, quality_metrics_every=100,
+          save_weights_every=500, save_images_every=500)
 ```
 
 **Logged Metrics (WGAN: 23 total, WGANGP: 9 total):**

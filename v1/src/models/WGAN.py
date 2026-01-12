@@ -644,7 +644,9 @@ class WGAN:
         using_generator=False,
         verbose=True,
         quality_metrics_every=100,
-        wandb_log=True
+        wandb_log=True,
+        save_weights_every=500,
+        save_images_every=500
     ):
         """
         Train the WGAN model.
@@ -674,6 +676,10 @@ class WGAN:
                 Set to 0 to disable. Default: 100.
             wandb_log (bool): If True, log metrics to W&B in real-time.
                 Requires W&B to be initialized. Default: True.
+            save_weights_every (int): Save model weights every N epochs.
+                Default: 500. Set to 0 to disable periodic weight saving.
+            save_images_every (int): Save sample images every N epochs.
+                Default: 500. Set to 0 to disable periodic image saving.
 
         Note:
             Training can be resumed by calling train() again.
@@ -833,10 +839,17 @@ class WGAN:
                 )
 
             # -----------------------------------------------------------------
-            # Save checkpoints
+            # Save sample images periodically
             # -----------------------------------------------------------------
-            if epoch % print_every_n_batches == 0:
+            if save_images_every > 0 and epoch % save_images_every == 0:
                 self.sample_images(run_folder)
+                if verbose:
+                    print(f"  📷 Saved sample images at epoch {epoch}")
+
+            # -----------------------------------------------------------------
+            # Save model weights periodically
+            # -----------------------------------------------------------------
+            if save_weights_every > 0 and epoch % save_weights_every == 0:
                 self.model.save_weights(
                     os.path.join(run_folder, f'weights/weights-{epoch}.weights.h5')
                 )
@@ -844,6 +857,8 @@ class WGAN:
                     os.path.join(run_folder, 'weights/weights.weights.h5')
                 )
                 self.save_model(run_folder)
+                if verbose:
+                    print(f"  💾 Saved weights at epoch {epoch}")
 
             self.epoch += 1
 

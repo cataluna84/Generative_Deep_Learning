@@ -11,10 +11,11 @@ Usage:
     from utils.gan.report_generator import generate_run_report
 
     report_path = generate_run_report(
-        run_folder="run/gan/0002_horses",
+        run_folder="run/gan/0002_horses/005",  # Now includes experiment run ID
         config={...},
         d_losses=gan.d_losses,
         g_losses=gan.g_losses,
+        experiment_run_id="005",  # Prefixes filename with experiment ID
         wandb_url="https://wandb.ai/..."
     )
 
@@ -116,6 +117,7 @@ def generate_run_report(
     config: Dict[str, Any],
     d_losses: List[Tuple[float, float, float]],
     g_losses: List[float],
+    experiment_run_id: str = None,
     wandb_url: str = None,
     notes: str = None
 ) -> str:
@@ -123,10 +125,13 @@ def generate_run_report(
     Generate a complete analysis report markdown file.
     
     Args:
-        run_folder: Path to run folder (e.g., "run/gan/0002_horses")
+        run_folder: Path to run folder (e.g., "run/gan/0002_horses/005")
         config: Training configuration dict
         d_losses: List of (d_loss_total, d_loss_real, d_loss_fake) tuples
         g_losses: List of generator loss values
+        experiment_run_id: Optional experiment run ID for filename prefix.
+            If provided, report is saved as "{experiment_run_id}_analysis_report.md".
+            If None, falls back to extracting ID from folder name or uses default name.
         wandb_url: Optional W&B run URL
         notes: Optional observation notes
         
@@ -216,8 +221,23 @@ For complete metrics, loss curves, and generated images, see the W&B run dashboa
     if wandb_url:
         report += f"\n[View Full Report on W&B]({wandb_url})\n"
     
-    # Write report to file
-    report_path = os.path.join(run_folder, "analysis_report.md")
+    # ==========================================================================
+    # GENERATE REPORT FILENAME WITH EXPERIMENT RUN ID PREFIX
+    # ==========================================================================
+    # If experiment_run_id is provided, prefix the filename.
+    # Otherwise, attempt to extract from folder name for backward compatibility.
+    # ==========================================================================
+    if experiment_run_id:
+        report_filename = f"{experiment_run_id}_analysis_report.md"
+    else:
+        # Fallback: extract from folder path for backward compatibility
+        folder_name = os.path.basename(run_folder)
+        if folder_name.isdigit() and len(folder_name) == 3:
+            report_filename = f"{folder_name}_analysis_report.md"
+        else:
+            report_filename = "analysis_report.md"
+    
+    report_path = os.path.join(run_folder, report_filename)
     
     # Ensure run folder exists
     os.makedirs(run_folder, exist_ok=True)

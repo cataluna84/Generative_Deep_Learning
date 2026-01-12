@@ -37,9 +37,26 @@ gan.train(
     run_folder=RUN_FOLDER,
     verbose=True,              # Detailed console output
     quality_metrics_every=100, # FID/IS every 100 epochs
-    wandb_log=True             # W&B per-epoch logging
+    wandb_log=True,            # W&B per-epoch logging
+    save_weights_every=500,    # Save weights every 500 epochs
+    save_images_every=500      # Save sample images every 500 epochs
 )
 ```
+
+### Training Parameters
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `batch_size` | Required | Samples per training batch |
+| `epochs` | Required | Total number of training epochs |
+| `run_folder` | Required | Output directory for artifacts |
+| `n_critic` | 5 | Critic updates per generator update |
+| `clip_threshold` | 0.01 | Weight clipping value for Lipschitz constraint |
+| `verbose` | True | Show detailed per-epoch metrics |
+| `quality_metrics_every` | 100 | Compute FID/IS every N epochs (0 to disable) |
+| `wandb_log` | True | Log metrics to W&B in real-time |
+| `save_weights_every` | 500 | Save model weights every N epochs (0 to disable) |
+| `save_images_every` | 500 | Save sample images every N epochs (0 to disable) |
 
 ---
 
@@ -189,6 +206,57 @@ Track runs in notebook:
 |-----|------|---------|-------|--------|-----------|--------|--------|-------|
 | 001 | 2026-01-07 | [View](url) | 512 | 6000 | ✅ Stable | 5.35 | -116.4 | Baseline |
 ```
+
+---
+
+## GAN Run Management
+
+### Folder Structure
+
+GAN training creates artifacts in an experiment-specific folder:
+
+```
+v1/run/gan/{DATASET_RUN_ID}_{DATA_NAME}/{EXPERIMENT_RUN_ID}/
+├── {EXPERIMENT_RUN_ID}_analysis_report.md
+├── model.keras
+├── critic.keras
+├── generator.keras
+├── obj.pkl              # Training history object
+├── params.pkl           # Model parameters
+├── images/              # Generated samples (every 500 epochs)
+│   ├── sample_0.png
+│   ├── sample_500.png
+│   ├── sample_1000.png
+│   └── ...
+├── viz/                 # Training visualizations
+│   ├── critic.png
+│   ├── generator.png
+│   └── wassersteinloss_vs_batch.png
+└── weights/             # Model checkpoints (every 500 epochs)
+    ├── weights.weights.h5
+    ├── weights-0.weights.h5
+    ├── weights-500.weights.h5
+    └── ...
+```
+
+### Analysis Reports
+
+Each run automatically generates `{EXPERIMENT_RUN_ID}_analysis_report.md` containing:
+- Training verdict (stability score)
+- Full configuration table
+- Phase-wise metrics breakdown
+- Stability indicators with observations
+- W&B run link (if available)
+
+### W&B Run Naming
+
+GAN W&B runs use the format:
+```
+{model}_{DATA_NAME}_{DATASET_RUN_ID}_{EXPERIMENT_RUN_ID}
+```
+Example: `wgan_horses_0002_005`
+
+This enables filtering and comparing runs by dataset and experiment ID in the W&B dashboard.
 
 ---
 

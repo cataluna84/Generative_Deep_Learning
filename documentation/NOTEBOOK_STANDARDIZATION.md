@@ -120,6 +120,93 @@ print(f"Epochs: {EPOCHS} (reference: {REFERENCE_EPOCHS})")
 > See **[DYNAMIC_BATCH_SIZE.md](DYNAMIC_BATCH_SIZE.md)** for full API documentation.
 > The finder uses binary search + OOM detection to find the maximum safe batch size.
 
+### Step 1b: Run Folder Configuration
+
+Each training notebook uses a two-level folder structure for experiment isolation.
+
+#### Configuration Variables
+
+```python
+# =============================================================================
+# RUN FOLDER CONFIGURATION
+# =============================================================================
+# SECTION: Parent folder type (e.g., 'vae', 'gan', 'autoencoder', 'deep_learning')
+# DATASET_RUN_ID: Unique dataset identifier (groups related experiments)
+# DATA_NAME: Human-readable dataset name
+# EXPERIMENT_RUN_ID: Experiment run number (3-digit) - None for auto-increment
+# =============================================================================
+
+SECTION = 'vae'              # Parent folder for all VAE experiments
+DATASET_RUN_ID = '0001'      # Dataset identifier
+DATA_NAME = 'celeba'         # Dataset name
+EXPERIMENT_RUN_ID = None     # Set to None for auto-increment, or specify e.g., '003'
+```
+
+#### Auto-Increment Logic
+
+Add this function after the configuration variables:
+
+```python
+import re
+
+# Base folder for this dataset (without experiment run ID)
+BASE_RUN_FOLDER = f'../run/{SECTION}/{DATASET_RUN_ID}_{DATA_NAME}'
+
+def get_next_experiment_run_id(base_folder):
+    """
+    Determine the next available experiment run ID.
+    
+    Scans existing folders for 3-digit numeric subdirectories
+    and returns the next sequential ID.
+    """
+    if not os.path.exists(base_folder):
+        return '001'
+    
+    existing_ids = []
+    for item in os.listdir(base_folder):
+        item_path = os.path.join(base_folder, item)
+        if os.path.isdir(item_path) and re.match(r'^\d{3}$', item):
+            existing_ids.append(int(item))
+    
+    if not existing_ids:
+        return '001'
+    
+    return f'{max(existing_ids) + 1:03d}'
+
+# Auto-generate EXPERIMENT_RUN_ID if not specified
+if EXPERIMENT_RUN_ID is None or EXPERIMENT_RUN_ID == '':
+    EXPERIMENT_RUN_ID = get_next_experiment_run_id(BASE_RUN_FOLDER)
+    print(f'Auto-generated EXPERIMENT_RUN_ID: {EXPERIMENT_RUN_ID}')
+
+# Full run folder path (includes experiment run ID)
+RUN_FOLDER = f'{BASE_RUN_FOLDER}/{EXPERIMENT_RUN_ID}'
+```
+
+#### Folder Structure
+
+```
+v1/run/{section}/{DATASET_RUN_ID}_{DATA_NAME}/{EXPERIMENT_RUN_ID}/
+├── {EXPERIMENT_RUN_ID}_analysis_report.md
+├── model.keras
+├── images/          # Generated samples (every 500 epochs)
+├── viz/             # Training visualizations
+└── weights/         # Model weight checkpoints (every 500 epochs)
+```
+
+#### Section Types by Model
+
+| Model Type | Section | Example Path |
+|------------|---------|--------------|
+| Autoencoder | `autoencoder` | `run/autoencoder/0001_mnist/001/` |
+| VAE | `vae` | `run/vae/0001_celeba/003/` |
+| GAN | `gan` | `run/gan/0002_horses/005/` |
+| WGAN | `gan` | `run/gan/0002_horses/006/` |
+| Deep Learning | `deep_learning` | `run/deep_learning/0001_cifar/001/` |
+
+> [!IMPORTANT]
+> The `EXPERIMENT_RUN_ID` should match the run number in the Master Experiment Log
+> at the end of the notebook. This enables tracking runs across sessions.
+
 ### Step 2: W&B Initialization
 
 Initialize W&B early with `learning_rate: "auto"`.
@@ -299,13 +386,16 @@ IPython.Application.instance().kernel.do_shutdown(restart=True)
 
 - [ ] GPU memory growth enabled in first cell
 - [ ] Global config at top (BATCH_SIZE, EPOCHS, etc.)
-- [ ] W&B init with `learning_rate: "auto"`
+- [ ] Run folder config (DATASET_RUN_ID, EXPERIMENT_RUN_ID, auto-increment)
+- [ ] W&B init with `learning_rate: "auto"` and experiment run ID in name
 - [ ] LRFinder on cloned model
 - [ ] Training with callbacks (`WandbMetricsLogger`, `get_lr_scheduler`, `get_early_stopping`, `LRLogger`)
 - [ ] Post-training history plot with `semilogy()` for LR
-- [ ] Model saved with `.keras` extension (not legacy `.h5`)
+- [ ] Model saved to experiment folder with `.keras` extension
 - [ ] Weights saved with `.weights.h5` extension
+- [ ] Analysis report generated with experiment ID prefix
 - [ ] `wandb.finish()` at end
+- [ ] Master Experiment Log updated at end of notebook
 - [ ] Kernel restart cell to release GPU memory (final cell)
 
 ---
@@ -320,12 +410,15 @@ GANs use custom training loops, so standard Keras callbacks don't apply. The WGA
 from utils.wandb_utils import init_wandb, define_wgan_charts
 
 # Initialize W&B with hyperparameters
+# W&B run name format: {model}_{DATA_NAME}_{DATASET_RUN_ID}_{EXPERIMENT_RUN_ID}
 run = init_wandb(
-    name=f"wgan_{DATASET}_001",
+    name=f"wgan_{DATA_NAME}_{DATASET_RUN_ID}_{EXPERIMENT_RUN_ID}",
     project="generative-deep-learning",
     config={
         "model": "WGAN",
-        "dataset": DATASET,
+        "dataset": DATA_NAME,
+        "dataset_run_id": DATASET_RUN_ID,
+        "experiment_run_id": EXPERIMENT_RUN_ID,
         "batch_size": BATCH_SIZE,
         "epochs": EPOCHS,
         "learning_rate": LEARNING_RATE,
@@ -349,12 +442,13 @@ gan.train(
     batch_size=BATCH_SIZE,
     epochs=EPOCHS,
     run_folder=RUN_FOLDER,
-    print_every_n_batches=PRINT_EVERY_N_BATCHES,
     n_critic=N_CRITIC,
     clip_threshold=CLIP_THRESHOLD,
     verbose=True,              # Enable detailed console output
     quality_metrics_every=100, # FID/IS every 100 epochs
-    wandb_log=True             # Enable W&B per-epoch logging
+    wandb_log=True,            # Enable W&B per-epoch logging
+    save_weights_every=500,    # Save weights every 500 epochs
+    save_images_every=500      # Save sample images every 500 epochs
 )
 ```
 
@@ -370,7 +464,9 @@ gan.train(
     run_folder=RUN_FOLDER,
     n_critic=N_CRITIC,
     using_generator=True,
-    wandb_log=True  # Enable per-epoch W&B logging
+    wandb_log=True,            # Enable per-epoch W&B logging
+    save_weights_every=500,    # Save weights every 500 epochs
+    save_images_every=500      # Save sample images every 500 epochs
 )
 ```
 

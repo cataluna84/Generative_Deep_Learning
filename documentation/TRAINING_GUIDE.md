@@ -209,6 +209,53 @@ wandb.finish()
 
 ---
 
+## Run Folder Management
+
+### Configuration Variables
+
+Each training notebook includes these configuration variables:
+
+```python
+SECTION = 'gan'              # Parent folder type
+DATASET_RUN_ID = '0002'      # Dataset identifier (groups related experiments)
+DATA_NAME = 'horses'         # Human-readable dataset name
+EXPERIMENT_RUN_ID = None     # Set to None for auto-increment, or specify ID
+```
+
+### Auto-Increment Logic
+
+When `EXPERIMENT_RUN_ID = None`:
+1. Scans `../run/{section}/{DATASET_RUN_ID}_{DATA_NAME}/` for existing folders
+2. Finds all 3-digit numeric subdirectories (e.g., `001`, `002`, `005`)
+3. Returns next sequential ID (e.g., `006`)
+4. Falls back to `'001'` if no prior runs exist
+
+### Folder Structure
+
+```
+v1/run/{section}/{DATASET_RUN_ID}_{DATA_NAME}/{EXPERIMENT_RUN_ID}/
+├── {EXPERIMENT_RUN_ID}_analysis_report.md
+├── model.keras
+├── images/          # Generated samples (every 500 epochs)
+├── viz/             # Training visualizations
+└── weights/         # Model checkpoints (every 500 epochs)
+```
+
+### Master Experiment Log
+
+Each notebook maintains a "Master Experiment Log" at the end, tracking:
+- Run ID
+- Date
+- W&B URL
+- Key hyperparameters
+- Stability status
+- Final losses
+- Notes
+
+After training, manually add your run to the log to maintain experiment history.
+
+---
+
 ## Related Documentation
 
 - **[QUICKSTART.md](QUICKSTART.md)** - Installation and setup

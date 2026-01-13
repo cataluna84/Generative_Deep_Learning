@@ -1139,3 +1139,437 @@ class WGANGP:
             filepath (str): Path to weights file (.h5 or .weights.h5).
         """
         self.model.load_weights(filepath)
+
+    # =========================================================================
+    # EXPERIMENT REPORTING
+    # =========================================================================
+
+    def generate_experiment_report(self, run_folder, config):
+        """
+        Generate a comprehensive Markdown training analysis report.
+
+        Creates a detailed experiment report compliant with the Stability
+        Analysis Template, including:
+            - Phase-wise metrics (Warmup, Early, Mid, Late, Final)
+            - Stability indicators (monotonicity, balance, mode collapse)
+            - Training visualizations (loss charts, generated faces)
+            - Quality checks and training verdict
+
+        The report is saved as 'experiment_report.md' in the run folder and
+        optionally uploaded to Weights & Biases.
+
+        Args:
+            run_folder (str): Path to the run folder for saving outputs.
+            config (dict): Configuration dictionary containing:
+                - EPOCHS (int): Total training epochs
+                - BATCH_SIZE (int): Batch size used
+                - CRITIC_LR (float): Critic learning rate
+                - GENERATOR_LR (float): Generator learning rate
+                - GRAD_WEIGHT (float): Gradient penalty coefficient
+                - N_CRITIC (int): Critic updates per generator update
+                - Z_DIM (int): Latent space dimension
+                - RUN_ID (str): Unique run identifier
+
+        Returns:
+            str: Path to the generated report file.
+
+        Example:
+            >>> config = {
+            ...     'EPOCHS': 6000,
+            ...     'BATCH_SIZE': 512,
+            ...     'CRITIC_LR': 0.0002,
+            ...     'GENERATOR_LR': 0.0002,
+            ...     'GRAD_WEIGHT': 10,
+            ...     'N_CRITIC': 5,
+            ...     'Z_DIM': 100,
+            ...     'RUN_ID': '0001'
+            ... }
+            >>> gan.generate_experiment_report('./run/gan/0001', config)
+        """
+        import tensorflow as tf
+        from datetime import datetime
+        from IPython.display import display, Image, Markdown
+
+        # ---------------------------------------------------------------------
+        # Helper function for phase-wise metrics calculation
+        # ---------------------------------------------------------------------
+        def get_phase_metrics(d_losses, g_losses, start_epoch, end_epoch):
+            """
+            Calculate start/end values and slope for a training phase.
+
+            Args:
+                d_losses (np.ndarray): Critic loss history.
+                g_losses (np.ndarray): Generator loss history.
+                start_epoch (int): Phase start epoch.
+                end_epoch (int): Phase end epoch.
+
+            Returns:
+                dict: Phase metrics including range, changes, and slopes.
+            """
+            if start_epoch >= len(d_losses) or end_epoch <= start_epoch:
+                return None
+
+            # Clamp end_epoch to available data
+            actual_end = min(end_epoch, len(d_losses))
+            range_slice = slice(start_epoch, actual_end)
+
+            d_range = d_losses[range_slice]
+            g_range = g_losses[range_slice]
+
+            # Average first/last 5 points for stability
+            d_start = np.mean(d_range[:5]) if len(d_range) > 5 else d_range[0]
+            d_end = np.mean(d_range[-5:]) if len(d_range) > 5 else d_range[-1]
+            g_start = np.mean(g_range[:5]) if len(g_range) > 5 else g_range[0]
+            g_end = np.mean(g_range[-5:]) if len(g_range) > 5 else g_range[-1]
+
+            # Slope (per epoch)
+            epochs_in_phase = actual_end - start_epoch
+            d_slope = (d_end - d_start) / epochs_in_phase if epochs_in_phase > 0 else 0
+            g_slope = (g_end - g_start) / epochs_in_phase if epochs_in_phase > 0 else 0
+
+            return {
+                "range": f"{start_epoch}-{actual_end}",
+                "d_change": f"{d_start:.2f} -> {d_end:.2f}",
+                "g_change": f"{g_start:.2f} -> {g_end:.2f}",
+                "d_slope": f"{d_slope:.4f}",
+                "g_slope": f"{g_slope:.4f}"
+            }
+
+        # ---------------------------------------------------------------------
+        # 1. Prepare data
+        # ---------------------------------------------------------------------
+        epochs = config.get('EPOCHS', 0)
+        d_losses = np.array([
+            x[0] if isinstance(x, (list, tuple, np.ndarray)) else x
+            for x in self.d_losses
+        ])
+        d_real = np.array([x[1] for x in self.d_losses]) \
+            if len(self.d_losses) > 0 and len(self.d_losses[0]) > 1 \
+            else np.zeros_like(d_losses)
+        d_fake = np.array([x[2] for x in self.d_losses]) \
+            if len(self.d_losses) > 0 and len(self.d_losses[0]) > 2 \
+            else np.zeros_like(d_losses)
+        g_losses = np.array(self.g_losses)
+
+        # ---------------------------------------------------------------------
+        # 2. Generate visualizations
+        # ---------------------------------------------------------------------
+        viz_dir = os.path.join(run_folder, 'viz')
+        os.makedirs(viz_dir, exist_ok=True)
+
+        # A. Loss chart
+        loss_chart_path = os.path.join(viz_dir, 'loss_chart.png')
+        try:
+            plt.figure(figsize=(12, 6))
+            plt.plot(d_losses, label='Critic Loss', alpha=0.8)
+            plt.plot(g_losses, label='Generator Loss', alpha=0.5)
+            plt.title(f'WGAN-GP Training Stability ({epochs} Epochs)')
+            plt.xlabel('Epoch')
+            plt.ylabel('Loss')
+            plt.legend()
+            plt.grid(True, alpha=0.3)
+            plt.savefig(loss_chart_path)
+            plt.close()
+        except Exception as e:
+            print(f"Error generating loss chart: {e}")
+            loss_chart_path = None
+
+        # B. Generated faces grid
+        faces_chart_path = os.path.join(viz_dir, 'generated_faces.png')
+        try:
+            z_dim = config.get('Z_DIM', 100)
+            noise = tf.random.normal([36, z_dim])
+            gen_imgs = self.generator(noise, training=False)
+            gen_imgs = 0.5 * gen_imgs + 0.5  # Rescale to [0, 1]
+
+            fig, axs = plt.subplots(6, 6, figsize=(8, 8))
+            cnt = 0
+            for i in range(6):
+                for j in range(6):
+                    axs[i, j].imshow(gen_imgs[cnt, :, :, :])
+                    axs[i, j].axis('off')
+                    cnt += 1
+            plt.tight_layout()
+            plt.savefig(faces_chart_path)
+            plt.close()
+        except Exception as e:
+            print(f"Error generating faces: {e}")
+            faces_chart_path = None
+
+        # ---------------------------------------------------------------------
+        # 3. Analyze stability
+        # ---------------------------------------------------------------------
+        final_d = np.mean(d_losses[-10:]) if len(d_losses) > 10 else d_losses[-1]
+        final_g = np.mean(g_losses[-10:]) if len(g_losses) > 10 else g_losses[-1]
+
+        d_g_ratio = abs(final_d / (final_g + 1e-8))
+        loss_var = np.var(d_losses[-100:]) if len(d_losses) > 100 else 0
+
+        # Determine training verdict
+        verdict = "✅ STABLE"
+        if d_g_ratio < 0.01:
+            verdict = "❌ SUSPICIOUS (D/G Ratio Low)"
+        if loss_var > 1.0:
+            verdict = "⚠️ UNSTABLE (High Variance)"
+        if abs(final_g) < 0.1:
+            verdict = "❌ MODE COLLAPSE (G Loss -> 0)"
+
+        # ---------------------------------------------------------------------
+        # Dynamic Phase Definitions
+        # ---------------------------------------------------------------------
+        # Phases are calculated as proportions of actual training length,
+        # not hardcoded values. This handles edge cases:
+        #   - Very short runs (< 50 epochs): Fewer phases, minimum 2
+        #   - Short runs (50-500 epochs): Proportional phases
+        #   - Standard runs (500-10000 epochs): Full 5-phase breakdown
+        #   - Long runs (> 10000 epochs): Proportional scaling
+        #
+        # Phase proportions (of total epochs):
+        #   Warmup: 0% - 2%   (initial instability)
+        #   Early:  2% - 15%  (rapid learning)
+        #   Mid:    15% - 50% (steady progress)
+        #   Late:   50% - 85% (refinement)
+        #   Final:  85% - 100% (convergence)
+
+        # Use actual number of epochs completed, not config value
+        actual_epochs = len(d_losses)
+
+        # Edge case: No data
+        if actual_epochs == 0:
+            phases = []
+        # Edge case: Very short run (< 20 epochs) - just 2 phases
+        elif actual_epochs < 20:
+            mid = actual_epochs // 2
+            phases = [
+                ("Early", 0, mid),
+                ("Late", mid, actual_epochs)
+            ]
+        # Edge case: Short run (20-100 epochs) - 3 phases
+        elif actual_epochs < 100:
+            p1 = int(actual_epochs * 0.15)  # 15%
+            p2 = int(actual_epochs * 0.60)  # 60%
+            phases = [
+                ("Early", 0, p1),
+                ("Mid", p1, p2),
+                ("Late", p2, actual_epochs)
+            ]
+        # Edge case: Medium run (100-500 epochs) - 4 phases
+        elif actual_epochs < 500:
+            p1 = int(actual_epochs * 0.05)   # 5%
+            p2 = int(actual_epochs * 0.25)   # 25%
+            p3 = int(actual_epochs * 0.70)   # 70%
+            phases = [
+                ("Warmup", 0, p1),
+                ("Early", p1, p2),
+                ("Mid", p2, p3),
+                ("Final", p3, actual_epochs)
+            ]
+        # Standard/Long runs (>= 500 epochs) - full 5 phases
+        else:
+            p1 = int(actual_epochs * 0.02)   # 2% Warmup
+            p2 = int(actual_epochs * 0.15)   # 15% Early
+            p3 = int(actual_epochs * 0.50)   # 50% Mid
+            p4 = int(actual_epochs * 0.85)   # 85% Late
+            phases = [
+                ("Warmup", 0, p1),
+                ("Early", p1, p2),
+                ("Mid", p2, p3),
+                ("Late", p3, p4),
+                ("Final", p4, actual_epochs)
+            ]
+
+        phase_rows = []
+        for name, start, end in phases:
+            metrics = get_phase_metrics(d_losses, g_losses, start, end)
+            if metrics:
+                phase_rows.append(
+                    f"| {name} | {metrics['range']} | {metrics['d_change']} | "
+                    f"{metrics['g_change']} | {metrics['d_slope']} | "
+                    f"{metrics['g_slope']} |"
+                )
+
+        # Wasserstein distance
+        w_dist = abs(d_real - d_fake)
+        final_w_dist = np.mean(w_dist[-10:]) if len(w_dist) > 10 else 0
+
+        # ---------------------------------------------------------------------
+        # 4. Compose Markdown report
+        # ---------------------------------------------------------------------
+        date_str = datetime.now().strftime("%Y-%m-%d %H:%M")
+
+        report = f"""
+# Training Analysis Report: `{config.get('RUN_ID', 'N/A')}`
+
+**Generated:** `{date_str}`  
+**Epochs Completed:** `{actual_epochs}` (configured: {epochs})  
+**Final D Loss:** `{final_d:.4f}`  
+**Final G Loss:** `{final_g:.4f}`  
+
+---
+
+## 1. Visualizations
+
+### Generated Faces
+![Generated Faces](viz/generated_faces.png)
+
+### Training Loss
+![Loss Chart](viz/loss_chart.png)
+
+---
+
+## 2. Training Verdict
+
+| Metric | Value |
+|--------|-------|
+| **Stability** | **{verdict}** |
+| **D/G Ratio** | `{d_g_ratio:.4f}` (>0.01 is good) |
+| **Loss Variance** | `{loss_var:.6f}` (Lower is better) |
+| **Final W-Dist** | `{final_w_dist:.4f}` (Higher is better initially) |
+
+---
+
+## 3. Configuration
+| Parameter | Value |
+|-----------|-------|
+| Batch Size | {config.get('BATCH_SIZE', 'N/A')} |
+| Critic LR | {config.get('CRITIC_LR', 'N/A')} |
+| Generator LR | {config.get('GENERATOR_LR', 'N/A')} |
+| Gradient Penalty | {config.get('GRAD_WEIGHT', 'N/A')} |
+| n_critic | {config.get('N_CRITIC', 'N/A')} |
+
+---
+
+## 4. Training Progression (Phase-wise Metrics)
+
+| Phase | Epoch Range | D Loss (Start -> End) | G Loss (Start -> End) | Δ D/epoch | Δ G/epoch |
+|-------|-------------|-----------------------|-----------------------|-----------|-----------|
+""" + "\n".join(phase_rows) + f"""
+
+---
+
+## 5. Stability Indicators
+
+| Indicator | Status | Observation |
+|-----------|--------|-------------|
+| **Monotonicity** | {'✅' if loss_var < 0.5 else '⚠️'} | Variance: {loss_var:.6f} |
+| **Balance** | {'✅' if 0.01 < d_g_ratio < 10 else '⚠️'} | D/G Ratio: {d_g_ratio:.4f} |
+| **Mode Collapse** | {'✅' if abs(final_g) > 1.0 else '❌'} | G Loss magnitude: {abs(final_g):.2f} |
+
+---
+
+## 6. Notes
+- **W-Distance**: Should grow initially and then stabilize. Current final: {final_w_dist:.4f}
+- **Critic**: Should maintain ability to distinguish (D loss > 0).
+"""
+
+        # ---------------------------------------------------------------------
+        # 5. Save report
+        # ---------------------------------------------------------------------
+        # Extract experiment ID from folder path (e.g., '/path/to/001' -> '001')
+        experiment_id = os.path.basename(run_folder)
+        report_path = os.path.join(run_folder, f'{experiment_id}_analysis_report.md')
+        with open(report_path, 'w') as f:
+            f.write(report)
+
+        print(f"✓ Report saved to {report_path}")
+
+        # ---------------------------------------------------------------------
+        # 6. Upload to W&B if available
+        # ---------------------------------------------------------------------
+        # Log analysis report and ALL viz/ PNG files to W&B
+        # Uses Artifacts for reliable file uploads and log() for media gallery
+        try:
+            import wandb
+            import glob
+            if wandb.run is not None:
+                # ---------------------------------------------------------
+                # 6a. Create Artifact for report and viz files
+                # ---------------------------------------------------------
+                artifact = wandb.Artifact(
+                    name=f"training_report_{experiment_id}",
+                    type="report"
+                )
+                
+                # Add analysis report
+                artifact.add_file(report_path)
+                
+                # Add ALL PNG files from viz/ folder
+                viz_pattern = os.path.join(viz_dir, '*.png')
+                viz_files = glob.glob(viz_pattern)
+                for viz_file in viz_files:
+                    artifact.add_file(viz_file)
+                
+                # Log the artifact
+                wandb.log_artifact(artifact)
+                print(f"✓ Created W&B Artifact with report + {len(viz_files)} viz files")
+                
+                # ---------------------------------------------------------
+                # 6b. Log images to W&B Media Gallery for easy viewing
+                # ---------------------------------------------------------
+                media_images = {}
+                
+                # Generated faces (from this method)
+                if faces_chart_path and os.path.exists(faces_chart_path):
+                    media_images["final/generated_faces"] = wandb.Image(
+                        faces_chart_path, caption="Final Generated Faces"
+                    )
+                
+                # Loss chart (from this method)
+                if loss_chart_path and os.path.exists(loss_chart_path):
+                    media_images["final/training_loss"] = wandb.Image(
+                        loss_chart_path, caption="Training Loss"
+                    )
+                
+                # Notebook visualization files
+                wasserstein_path = os.path.join(viz_dir, 'wasserstein_distance.png')
+                if os.path.exists(wasserstein_path):
+                    media_images["final/wasserstein_distance"] = wandb.Image(
+                        wasserstein_path, caption="Wasserstein Distance"
+                    )
+                
+                critic_loss_path = os.path.join(viz_dir, 'critic_loss.png')
+                if os.path.exists(critic_loss_path):
+                    media_images["final/critic_loss"] = wandb.Image(
+                        critic_loss_path, caption="Critic Loss Components"
+                    )
+                
+                generator_loss_path = os.path.join(viz_dir, 'generator_loss.png')
+                if os.path.exists(generator_loss_path):
+                    media_images["final/generator_loss"] = wandb.Image(
+                        generator_loss_path, caption="Generator Loss"
+                    )
+                
+                # Model architecture diagrams
+                critic_arch_path = os.path.join(viz_dir, 'critic.png')
+                if os.path.exists(critic_arch_path):
+                    media_images["architecture/critic"] = wandb.Image(
+                        critic_arch_path, caption="Critic Architecture"
+                    )
+                
+                generator_arch_path = os.path.join(viz_dir, 'generator.png')
+                if os.path.exists(generator_arch_path):
+                    media_images["architecture/generator"] = wandb.Image(
+                        generator_arch_path, caption="Generator Architecture"
+                    )
+                
+                if media_images:
+                    wandb.log(media_images)
+                    print(f"✓ Logged {len(media_images)} images to W&B media gallery")
+                
+        except ImportError:
+            pass
+        except Exception as e:
+            print(f"⚠️ W&B Upload failed: {e}")
+
+        # ---------------------------------------------------------------------
+        # 7. Display in notebook
+        # ---------------------------------------------------------------------
+        display(Markdown(report))
+        if faces_chart_path:
+            print("Displaying Generated Faces:")
+            display(Image(filename=faces_chart_path))
+        if loss_chart_path:
+            print("Displaying Loss Chart:")
+            display(Image(filename=loss_chart_path))
+
+        return report_path

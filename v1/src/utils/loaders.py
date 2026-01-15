@@ -64,9 +64,20 @@ class DataLoader():
         self.dataset_name = dataset_name
         self.img_res = img_res
 
+        # Robust data path find
+        # Check standard locations relative to notebook or root
+        possible_roots = ['./data', '../data', '../../data', 'v1/data']
+        self.data_root = './data' # Default fallback
+        
+        for root in possible_roots:
+            if os.path.exists(os.path.join(root, dataset_name)):
+                self.data_root = root
+                break
+
+
     def load_data(self, domain, batch_size=1, is_testing=False):
         data_type = "train%s" % domain if not is_testing else "test%s" % domain
-        path = glob('./data/%s/%s/*' % (self.dataset_name, data_type))
+        path = glob('%s/%s/%s/*' % (self.data_root, self.dataset_name, data_type))
 
         batch_images = np.random.choice(path, size=batch_size)
 
@@ -88,8 +99,8 @@ class DataLoader():
 
     def load_batch(self, batch_size=1, is_testing=False):
         data_type = "train" if not is_testing else "val"
-        path_A = glob('./data/%s/%sA/*' % (self.dataset_name, data_type))
-        path_B = glob('./data/%s/%sB/*' % (self.dataset_name, data_type))
+        path_A = glob('%s/%s/%sA/*' % (self.data_root, self.dataset_name, data_type))
+        path_B = glob('%s/%s/%sB/*' % (self.data_root, self.dataset_name, data_type))
 
         self.n_batches = int(min(len(path_A), len(path_B)) / batch_size)
         total_samples = self.n_batches * batch_size

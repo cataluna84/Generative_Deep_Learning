@@ -24,7 +24,7 @@ __pycache__/
 
 # Data Input
 v1/data/img_align_celeba
-
+v1/data/apple2orange
 
 
 # Distribution / packaging

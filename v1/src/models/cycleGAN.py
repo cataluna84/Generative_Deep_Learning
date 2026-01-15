@@ -351,8 +351,8 @@ class CycleGAN():
                 imgs_A = data_loader.load_data(domain="A", batch_size=1, is_testing=True)
                 imgs_B = data_loader.load_data(domain="B", batch_size=1, is_testing=True)
             else:
-                imgs_A = data_loader.load_img('data/%s/testA/%s' % (data_loader.dataset_name, test_A_file))
-                imgs_B = data_loader.load_img('data/%s/testB/%s' % (data_loader.dataset_name, test_B_file))
+                imgs_A = data_loader.load_img('%s/%s/testA/%s' % (data_loader.data_root, data_loader.dataset_name, test_A_file))
+                imgs_B = data_loader.load_img('%s/%s/testB/%s' % (data_loader.data_root, data_loader.dataset_name, test_B_file))
 
             # Translate images to the other domain
             fake_B = self.g_AB.predict(imgs_A, verbose=0)

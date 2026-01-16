@@ -110,7 +110,7 @@ class DataLoader():
         path_A = np.random.choice(path_A, total_samples, replace=False)
         path_B = np.random.choice(path_B, total_samples, replace=False)
 
-        for i in range(self.n_batches - 1):
+        for i in range(self.n_batches):
             batch_A = path_A[i * batch_size:(i + 1) * batch_size]
             batch_B = path_B[i * batch_size:(i + 1) * batch_size]
             imgs_A, imgs_B = [], []
@@ -149,6 +149,71 @@ class DataLoader():
         # skimage.transform.resize expects (height, width) and returns float64 in [0, 1]
         resized = skimage_resize(img, size, preserve_range=True, anti_aliasing=True)
         return resized.astype(np.float64)
+
+    def create_tf_dataset(self, batch_size=4, prefetch_buffer=2, cache=True):
+        """Create a tf.data pipeline for optimized GPU training.
+
+        This method creates a TensorFlow data pipeline with prefetching,
+        parallel loading, and optional caching for improved GPU utilization.
+
+        Args:
+            batch_size (int): Number of images per batch (default: 4).
+            prefetch_buffer (int): Number of batches to prefetch. Use
+                tf.data.AUTOTUNE for automatic tuning (default: 2).
+            cache (bool): Whether to cache the dataset in memory (default: True).
+
+        Returns:
+            tf.data.Dataset: A dataset yielding (imgs_A, imgs_B) tuples.
+        """
+        path_A = glob('%s/%s/trainA/*' % (self.data_root, self.dataset_name))
+        path_B = glob('%s/%s/trainB/*' % (self.data_root, self.dataset_name))
+
+        # Ensure equal number of samples from each domain
+        n_samples = min(len(path_A), len(path_B))
+        path_A = path_A[:n_samples]
+        path_B = path_B[:n_samples]
+
+        self.n_batches = n_samples // batch_size
+
+        def load_and_preprocess(path_a, path_b):
+            """Load and preprocess a pair of images."""
+            # Load images
+            img_a = tf.io.read_file(path_a)
+            img_a = tf.image.decode_jpeg(img_a, channels=3)
+            img_a = tf.image.resize(img_a, self.img_res)
+            img_a = tf.cast(img_a, tf.float32) / 127.5 - 1.0
+
+            img_b = tf.io.read_file(path_b)
+            img_b = tf.image.decode_jpeg(img_b, channels=3)
+            img_b = tf.image.resize(img_b, self.img_res)
+            img_b = tf.cast(img_b, tf.float32) / 127.5 - 1.0
+
+            # Random horizontal flip (data augmentation)
+            if tf.random.uniform(()) > 0.5:
+                img_a = tf.image.flip_left_right(img_a)
+                img_b = tf.image.flip_left_right(img_b)
+
+            return img_a, img_b
+
+        # Create dataset from file paths
+        dataset = tf.data.Dataset.from_tensor_slices((path_A, path_B))
+        dataset = dataset.shuffle(buffer_size=n_samples)
+
+        # Parallel map for loading and preprocessing
+        dataset = dataset.map(
+            load_and_preprocess,
+            num_parallel_calls=tf.data.AUTOTUNE
+        )
+
+        # Optional caching (keeps data in memory after first epoch)
+        if cache:
+            dataset = dataset.cache()
+
+        # Batch and prefetch
+        dataset = dataset.batch(batch_size)
+        dataset = dataset.prefetch(prefetch_buffer)
+
+        return dataset
 
 
 def load_model(model_class, folder):

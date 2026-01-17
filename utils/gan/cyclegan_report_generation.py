@@ -186,27 +186,40 @@ def find_sample_images(run_folder, total_epochs):
 
 
 def generate_training_report(gan, run_folder, run_id, config, wandb_run=None):
-    """
-    Generate a comprehensive training analysis report.
-    
+    """Generate a comprehensive training analysis report.
+
+    Creates a markdown report with training metrics, stability analysis,
+    loss visualization, and sample images. Optionally logs files to W&B.
+
     Args:
-        gan: Trained CycleGAN object
-        run_folder: Path to the run folder
-        run_id: Experiment run ID (e.g., '008')
-        config: Dictionary with training configuration:
-            - data_name: Dataset name
-            - batch_size: Batch size
-            - epochs: Number of epochs
-            - learning_rate: Learning rate
-            - gen_n_filters: Generator filter count
-            - disc_n_filters: Discriminator filter count
-            - buffer_max_length: Buffer size
-            - lambda_reconstr: Cycle loss weight
-            - lambda_id: Identity loss weight
-        wandb_run: Optional wandb run object to log artifacts
-        
+        gan: Trained CycleGAN object with g_losses and d_losses attributes.
+        run_folder (str): Path to the run folder where outputs are saved.
+        run_id (str): Experiment run ID (e.g., '008').
+        config (dict): Training configuration containing:
+            - data_name (str): Dataset name.
+            - batch_size (int): Batch size used for training.
+            - epochs (int): Number of training epochs.
+            - learning_rate (float): Learning rate.
+            - gen_n_filters (int): Generator base filter count.
+            - disc_n_filters (int): Discriminator base filter count.
+            - buffer_max_length (int): Fake image buffer size.
+            - lambda_reconstr (float): Cycle consistency loss weight.
+            - lambda_id (float): Identity loss weight.
+        wandb_run: Optional wandb module or run object. If provided, logs
+            the analysis report and training history CSV to W&B Files tab
+            for easy one-click access.
+
     Returns:
-        Path to the generated report
+        str: Path to the generated markdown report.
+
+    Example:
+        >>> report_path = generate_training_report(
+        ...     gan=gan,
+        ...     run_folder='./run/paint/0001_apple2orange/009',
+        ...     run_id='009',
+        ...     config={'data_name': 'apple2orange', 'epochs': 100, ...},
+        ...     wandb_run=wandb.run
+        ... )
     """
     print("Generating training analysis report...")
     
@@ -229,8 +242,8 @@ def generate_training_report(gan, run_folder, run_id, config, wandb_run=None):
     df.to_csv(history_path, index=False)
     print(f"  Saved training history to {history_path}")
     
-    # Generate loss plot
-    loss_plot_path = os.path.join(run_folder, 'loss_plot.png')
+    # Generate loss plot (save to viz/ folder for browsable table)
+    loss_plot_path = os.path.join(run_folder, 'viz', 'loss_plot.png')
     generate_loss_plot(df, loss_plot_path)
     print(f"  Saved loss plot to {loss_plot_path}")
     
@@ -310,7 +323,7 @@ def generate_training_report(gan, run_folder, run_id, config, wandb_run=None):
 
 ## Loss Visualization
 
-![Loss Plot](loss_plot.png)
+![Loss Plot](viz/loss_plot.png)
 
 ---
 
@@ -329,21 +342,21 @@ def generate_training_report(gan, run_folder, run_id, config, wandb_run=None):
         f.write(report)
     print(f"  Generated analysis report at {report_path}")
     
-    # Log to W&B if provided
+    # -------------------------------------------------------------------------
+    # Log to W&B Files tab
+    # Uses wandb.save() for one-click access in the Files tab, which is
+    # more convenient than Artifacts for viewing individual files.
+    # -------------------------------------------------------------------------
     if wandb_run is not None:
         try:
-            import wandb
-            report_artifact = wandb.Artifact(
-                name=f'cyclegan_report_{data_name}_{run_id}',
-                type='analysis_report'
-            )
-            report_artifact.add_file(report_path)
-            report_artifact.add_file(history_path)
-            report_artifact.add_file(loss_plot_path)
-            wandb_run.log_artifact(report_artifact)
-            print("  Report logged to W&B as artifact")
+            import wandb as wandb_module
+
+            # Save report and CSV to W&B Files tab
+            wandb_module.save(report_path)
+            wandb_module.save(history_path)
+            print("  Report and CSV logged to W&B Files tab")
         except Exception as e:
-            print(f"  Warning: Could not log to W&B: {e}")
+            print(f"  Warning: Could not log to W&B Files: {e}")
     
     return report_path
 

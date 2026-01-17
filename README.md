@@ -31,9 +31,11 @@ Generative_Deep_Learning/
 │       ├── metrics.py      # Per-epoch training metrics collection
 │       ├── quality_metrics.py  # FID, IS, pixel variance
 │       ├── stability_analysis.py  # Training stability indicators
-│       └── report_generator.py    # Analysis report generation
+│       ├── report_generator.py    # WGAN analysis reports
+│       ├── cyclegan_report_generation.py  # CycleGAN reports
+│       └── cyclegan_history_extraction.py # CycleGAN history extraction
 │
-├── scripts/                # Notebook standardization scripts (39 files)
+├── scripts/                # Notebook standardization scripts (10 files)
 │   ├── standardize_*.py    # Notebook standardization scripts
 │   ├── update_*.py         # Cell update scripts
 │   └── fix_*.py            # Bug fix scripts
@@ -95,9 +97,6 @@ Generative_Deep_Learning/
 │   ├── GAN_GUIDE.md        # GAN metrics, stability, triage
 │   ├── NOTEBOOK_STANDARDIZATION.md  # Complete workflow
 │   └── TRAINING_STABILITY_ANALYSIS_TEMPLATE.md  # Analysis template
-│
-├── .agent/                 # AI agent workflows
-│   └── workflows/          # Custom workflow definitions
 │
 ├── tests/                  # Test files
 ├── AGENTS.md               # Root AI agent context
@@ -234,6 +233,14 @@ wandb.init(project="generative-deep-learning", config={...})
 model.fit(x, y, callbacks=[WandbMetricsLogger()])
 wandb.finish()
 ```
+
+**W&B Output Locations:**
+
+| Data | Method | W&B Location |
+|------|--------|--------------|
+| Images | `wandb.Table` | Tables > `image_gallery` |
+| Viz | `wandb.Table` | Tables > `model_architecture` |
+| Report | `wandb.save()` | Files tab |
 
 See [TRAINING_GUIDE.md](documentation/TRAINING_GUIDE.md).
 

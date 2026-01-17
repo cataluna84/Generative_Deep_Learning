@@ -58,15 +58,19 @@ Ensure all deliverables meet these requirements:
 ```
 Generative_Deep_Learning/
 ├── utils/                  # Shared root utilities
+│   ├── __init__.py
 │   ├── callbacks.py        # LRFinder, LRLogger, get_lr_scheduler, get_early_stopping
 │   ├── gpu_utils.py        # Dynamic batch size finder
 │   ├── wandb_utils.py      # W&B integration (init_wandb, define_wgan_charts)
 │   └── gan/                # GAN-specific utilities
+│       ├── __init__.py
 │       ├── metrics.py      # Per-epoch training metrics
 │       ├── quality_metrics.py  # FID, IS, pixel variance
 │       ├── stability_analysis.py  # Stability indicators
-│       └── report_generator.py    # Analysis reports
-├── scripts/                # Notebook standardization (39 scripts)
+│       ├── report_generator.py    # Analysis reports (WGAN)
+│       ├── cyclegan_report_generation.py  # CycleGAN reports
+│       └── cyclegan_history_extraction.py # CycleGAN history extraction
+├── scripts/                # Notebook standardization (10 scripts)
 ├── v1/                     # 1st Edition (2019) - 22 notebooks
 │   ├── notebooks/          # Jupyter notebooks (.ipynb)
 │   ├── data_download_scripts/  # Data download scripts
@@ -95,7 +99,6 @@ Generative_Deep_Learning/
 │   ├── GAN_GUIDE.md
 │   ├── NOTEBOOK_STANDARDIZATION.md
 │   └── TRAINING_STABILITY_ANALYSIS_TEMPLATE.md
-├── .agent/workflows/       # Custom AI agent workflows
 ├── pyproject.toml          # Project dependencies
 └── sample.env              # Environment template
 ```
@@ -277,6 +280,15 @@ wandb.init(
 model.fit(x, y, callbacks=[WandbMetricsLogger()])
 wandb.finish()
 ```
+
+### W&B Output Locations
+
+| Data Type | Method | W&B Location |
+|-----------|--------|--------------|
+| Generated images | `wandb.Table` | Tables > `image_gallery` |
+| Viz diagrams | `wandb.Table` | Tables > `model_architecture` |
+| Report/CSV | `wandb.save()` | Files tab |
+| Metrics | `wandb.log()` | Charts |
 
 ---
 

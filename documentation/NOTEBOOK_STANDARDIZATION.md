@@ -356,6 +356,59 @@ print(f"{'='*50}")
 wandb.finish()
 ```
 
+### Step 6b: W&B Output Logging (GANs)
+
+For GAN notebooks, log outputs to browsable W&B locations instead of Artifacts:
+
+| Data Type | Method | W&B Location |
+|-----------|--------|--------------|
+| Generated images | `wandb.Table` | Tables > `image_gallery` |
+| Viz diagrams | `wandb.Table` | Tables > `model_architecture` |
+| Report/CSV | `wandb.save()` | Files tab |
+
+**Browsable Image Gallery:**
+
+```python
+import glob
+import os
+
+# Create table with sortable columns
+columns = ["epoch", "batch", "direction", "image"]
+gallery = wandb.Table(columns=columns)
+
+# Add all generated images
+for img_file in sorted(glob.glob(os.path.join(RUN_FOLDER, 'images', '*.png'))):
+    parts = os.path.basename(img_file).replace('.png', '').split('_')
+    if len(parts) >= 3:
+        direction = "A→B" if parts[0] == '0' else "B→A"
+        epoch, batch = int(parts[1]), int(parts[2])
+        gallery.add_data(epoch, batch, direction, wandb.Image(img_file))
+
+wandb.log({"image_gallery": gallery})
+```
+
+**Architecture Diagrams Table:**
+
+```python
+viz_table = wandb.Table(columns=["model", "diagram"])
+for viz_file in sorted(glob.glob(os.path.join(RUN_FOLDER, 'viz', '*.png'))):
+    model_name = os.path.basename(viz_file).replace('.png', '')
+    viz_table.add_data(model_name, wandb.Image(viz_file))
+wandb.log({"model_architecture": viz_table})
+```
+
+**Files Tab (one-click access):**
+
+```python
+# Save report and CSV to Files tab
+wandb.save(report_path)
+wandb.save(history_path)
+```
+
+> [!TIP]
+> Use `wandb.Table` for browsable/filterable data (images, metrics).
+> Use `wandb.save()` for files you want one-click access to (reports, CSVs).
+
 ### Step 7: Restart Kernel to Release GPU Memory
 
 > [!IMPORTANT]

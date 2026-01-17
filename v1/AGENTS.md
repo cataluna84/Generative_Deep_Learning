@@ -126,6 +126,28 @@ When working on notebooks in this directory, follow the **[Notebook Standardizat
 
 6. **Finish**: Always call `wandb.finish()` at the end.
 
+### CycleGAN W&B Pattern
+
+CycleGAN uses browsable Tables instead of Artifacts:
+
+```python
+# Log all images to browsable table
+columns = ["epoch", "batch", "direction", "image"]
+gallery = wandb.Table(columns=columns)
+for img_file in image_files:
+    gallery.add_data(epoch, batch, direction, wandb.Image(img_file))
+wandb.log({"image_gallery": gallery})
+
+# Log viz diagrams
+viz_table = wandb.Table(columns=["model", "diagram"])
+for viz_file in viz_files:
+    viz_table.add_data(model_name, wandb.Image(viz_file))
+wandb.log({"model_architecture": viz_table})
+
+# Save report to Files tab
+wandb.save(report_path)
+```
+
 7. **Kernel Restart**: Add a final cell to restart kernel and release GPU memory:
    ```python
    import IPython

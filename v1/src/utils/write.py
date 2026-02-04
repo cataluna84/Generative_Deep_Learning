@@ -1,6 +1,39 @@
 #!/usr/bin/env python
+"""Question-Answer Data Processing Utilities.
+
+This module provides utilities for loading, processing, and preparing
+QA (Question-Answer) training data from CSV files. It includes:
+
+- GloVe word embedding loading and vocabulary management
+- Tokenization and batch preparation for seq2seq models
+- Training and test data generators
+
+The module loads trimmed GloVe embeddings at import time, which requires
+the file `data/glove/glove.6B.100d.trimmed.txt` to exist. Run
+`download_qa_data.sh` to create this file.
+
+Typical usage::
+
+    from src.utils.write import training_data, test_data, glove
+    
+    # Get pre-loaded GloVe embeddings
+    print(f"Vocabulary size: {glove.shape[0]}")
+    
+    # Iterate over training batches
+    for batch in training_data():
+        document_tokens = batch['document_tokens']
+        # ... process batch ...
+
+Attributes:
+    glove (np.ndarray): Pre-loaded GloVe embeddings matrix.
+    PADDING_TOKEN (int): Token ID for padding.
+    UNKNOWN_TOKEN (int): Token ID for unknown words.
+    START_TOKEN (int): Token ID for sequence start.
+    END_TOKEN (int): Token ID for sequence end.
+"""
 
 from collections import Counter
+from pathlib import Path
 
 import csv
 
@@ -22,6 +55,14 @@ _idx_to_word = []
 
 
 def _add_word(word):
+    """Add a word to the vocabulary and return its token ID.
+    
+    Args:
+        word: The word string to add to vocabulary.
+        
+    Returns:
+        int: The token ID assigned to the word.
+    """
     idx = len(_idx_to_word)
     _word_to_idx[word] = idx
     _idx_to_word.append(word)
@@ -34,7 +75,10 @@ START_TOKEN = _add_word(START_WORD)
 END_TOKEN = _add_word(END_WORD)
 
 
-embeddings_path = './data/glove/glove.6B.100d.trimmed.txt'
+# Calculate path relative to this module file (v1/src/utils/write.py)
+# Data is in v1/data/, so we go up 2 levels from src/utils/ to v1/
+_module_dir = Path(__file__).parent  # v1/src/utils/
+embeddings_path = str(_module_dir / '../../data/glove/glove.6B.100d.trimmed.txt')
 
 with open(embeddings_path) as f:
     line = f.readline()
@@ -63,19 +107,66 @@ with open(embeddings_path) as f:
 
 
 def look_up_word(word):
+    """Convert a word to its token ID.
+    
+    Args:
+        word: The word string to look up.
+        
+    Returns:
+        int: Token ID for the word, or UNKNOWN_TOKEN if not in vocabulary.
+    """
     return _word_to_idx.get(word, UNKNOWN_TOKEN)
 
 
 def look_up_token(token):
+    """Convert a token ID back to its word string.
+    
+    Args:
+        token: The token ID to look up.
+        
+    Returns:
+        str: The word corresponding to the token ID.
+        
+    Raises:
+        IndexError: If token is out of vocabulary range.
+    """
     return _idx_to_word[token]
 
 
 
 def _tokenize(string):
+    """Tokenize a string into lowercase words.
+    
+    Args:
+        string: Input text string.
+        
+    Returns:
+        list[str]: List of lowercase word tokens.
+    """
     return [word.lower() for word in string.split(" ")]
 
 
 def _prepare_batch(batch):
+    """Prepare a batch of QA examples for model training.
+    
+    Converts raw text data into padded numpy arrays suitable for
+    feeding into a seq2seq model. Creates document tokens, answer
+    masks, and question tokens.
+    
+    Args:
+        batch: List of dicts with keys: document_id, document_text,
+            document_words, answer_text, answer_indices, question_text,
+            question_words.
+            
+    Returns:
+        dict: Prepared batch with numpy arrays:
+            - document_tokens: (batch_size, max_doc_len) int32
+            - answer_masks: (batch_size, max_ans_len, max_doc_len) int32
+            - answer_labels: (batch_size, max_doc_len) int32
+            - question_input_tokens: (batch_size, max_q_len) int32
+            - question_output_tokens: (batch_size, max_q_len) int32
+            - size: int, batch size
+    """
     id_to_indices = {}
     document_ids = []
     document_text = []
@@ -149,6 +240,17 @@ def _prepare_batch(batch):
 
 
 def collapse_documents(batch):
+    """Remove duplicate documents from a batch.
+    
+    Keeps only the first occurrence of each unique document_id,
+    useful for inference when you want one prediction per document.
+    
+    Args:
+        batch: Prepared batch dict from _prepare_batch().
+        
+    Returns:
+        dict: Collapsed batch with unique documents only.
+    """
     seen_ids = set()
     keep = []
 
@@ -172,6 +274,18 @@ def collapse_documents(batch):
 
 
 def expand_answers(batch, answers):
+    """Expand predicted answer tags into answer spans.
+    
+    Converts binary answer tags (per-word) into contiguous answer
+    spans for question generation.
+    
+    Args:
+        batch: Collapsed batch from collapse_documents().
+        answers: (batch_size, doc_len) array of binary answer tags.
+        
+    Returns:
+        dict: New prepared batch with expanded answer indices.
+    """
     new_batch = []
 
     for i in range(batch["size"]):
@@ -216,6 +330,18 @@ def expand_answers(batch, answers):
 
 
 def _read_data(path):
+    """Read QA data from a CSV file.
+    
+    Parses the CSV and groups entries by document_id for efficient
+    batching of questions about the same document.
+    
+    Args:
+        path: Path to CSV file with columns: document_id, document_text,
+            question_text, answer_indices.
+            
+    Returns:
+        dict: Mapping of document_id to list of story entries.
+    """
     stories = {}
 
     with open(path) as f:
@@ -266,6 +392,17 @@ def _read_data(path):
 
 
 def _process_stories(stories):
+    """Generate batches from story data.
+    
+    Yields prepared batches by grouping stories up to _MAX_BATCH_SIZE.
+    Stories are shuffled before batching.
+    
+    Args:
+        stories: Dict mapping document_id to list of story entries.
+        
+    Yields:
+        dict: Prepared batch from _prepare_batch().
+    """
     batch = []
     vals = list(stories.values())
     random.shuffle(vals)
@@ -284,23 +421,53 @@ _training_stories = None
 _test_stories = None
 
 def _load_training_stories():
+    """Load and cache training data stories."""
     global _training_stories
-    _training_stories = _read_data("./data/qa/train.csv")
+    train_path = str(_module_dir / "../../data/qa/train.csv")
+    _training_stories = _read_data(train_path)
     return _training_stories
 
+
 def _load_test_stories():
+    """Load and cache test data stories."""
     global _test_stories
-    _test_stories = _read_data("./data/qa_test/my_test.csv")
+    test_path = str(_module_dir / "../../data/qa_test/my_test.csv")
+    _test_stories = _read_data(test_path)
     return _test_stories
 
+
 def training_data():
+    """Generate training data batches.
+    
+    Yields prepared batches from the training CSV file.
+    Each batch contains up to _MAX_BATCH_SIZE examples.
+    
+    Yields:
+        dict: Prepared batch with document_tokens, answer_masks, etc.
+    """
     return _process_stories(_load_training_stories())
 
+
 def test_data():
+    """Generate test data batches.
+    
+    Yields prepared batches from the test CSV file.
+    
+    Yields:
+        dict: Prepared batch with document_tokens, answer_masks, etc.
+    """
     return _process_stories(_load_test_stories())
 
 
 def trim_embeddings():
+    """Create trimmed GloVe embeddings file.
+    
+    Reads the full GloVe embeddings and writes a trimmed version
+    containing only words that appear in the QA dataset vocabulary.
+    Keeps the top 5000 question words and up to 10000 total words.
+    
+    Output file: data/glove/glove.6B.100d.trimmed.txt
+    """
     document_counts = Counter()
     question_counts = Counter()
     for data in [_load_training_stories().values(), _load_test_stories().values()]:
@@ -320,8 +487,11 @@ def trim_embeddings():
             break
         keep.add(word)
 
-    with open("./data/glove/glove.6B.100d.txt") as f:
-        with open("./data/glove/glove.6B.100d.trimmed.txt", "w") as f2:
+    glove_full_path = str(_module_dir / "../../data/glove/glove.6B.100d.txt")
+    glove_trimmed_path = str(_module_dir / "../../data/glove/glove.6B.100d.trimmed.txt")
+    
+    with open(glove_full_path) as f:
+        with open(glove_trimmed_path, "w") as f2:
             for line in f:
                 if line.split(" ")[0] in keep:
                     f2.write(line)

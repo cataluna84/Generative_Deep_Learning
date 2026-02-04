@@ -25,7 +25,12 @@ __pycache__/
 # Data Input
 v1/data/img_align_celeba
 v1/data/apple2orange
+v1/data/glove
+v1/data/qa
+v1/data/qa_test
 
+#RUN
+v1/run/qa
 
 # Distribution / packaging
 .Python
